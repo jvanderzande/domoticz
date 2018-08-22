@@ -169,7 +169,8 @@ define(['app'], function (app) {
 					null,
 					{ "sType": "numeric-battery" },
 					null,
-					null
+					null,
+					{ "visible": false }
 				],
 				"aaSorting": [[12, "desc"]],
 				"bSortClasses": false,
@@ -359,13 +360,22 @@ define(['app'], function (app) {
 								itemSubIcons += '&nbsp;<img src="images/empty16.png">';
 							}
 							var ID = item.ID;
+
+							SetDevicesFilter = function (filter) {
+								mTable.fnFilter(filter);
+							}
+							var zwid = "";
 							if (typeof(item.HardwareTypeVal) != 'undefined' && item.HardwareTypeVal == 21) {
 								if (item.ID.substr(-4, 2) == '00') {
-									ID = item.ID.substr(1,item.ID.length-2) + '<span class="ui-state-default">' + item.ID.substr(-2, 2) + '</span>';
+									ID = item.ID.substr(1,item.ID.length-2) + '<a onclick="SetDevicesFilter(\'0x' + item.ID.substr(-2, 2) + '\')">' + item.ID.substr(-2, 2) + '</a>';
+									zwid = "0x"+item.ID.substr(-2, 2);
 								} else {
-									ID = item.ID.substr(1,item.ID.length-4) + '<span class="ui-state-default">' + item.ID.substr(-4, 2) + '</span>' + item.ID.substr(-2, 2);
+									ID = item.ID.substr(1,item.ID.length-4) + '<a onclick="SetDevicesFilter(\'0x' + item.ID.substr(-4, 2) + '\')">' + item.ID.substr(-4, 2) + '</a>' + item.ID.substr(-2, 2);
+									zwid = "0x"+item.ID.substr(-4, 2);
 								}
 							}
+							var hwname = '<a onclick="SetDevicesFilter(\'' + item.HardwareName + '\')">' + item.HardwareName + '</a>';
+
 							if (item.Type == "Lighting 1") {
 								ID = String.fromCharCode(item.ID);
 							}
@@ -379,7 +389,7 @@ define(['app'], function (app) {
 							var addId = oTable.fnAddData([
 								itemChecker + "&nbsp;&nbsp;" + itemImage,
 								item.idx,
-								item.HardwareName,
+								hwname,
 								ID,
 								item.Unit,
 								item.Name,
@@ -389,7 +399,8 @@ define(['app'], function (app) {
 								item.SignalLevel,
 								BatteryLevel,
 								itemSubIcons,
-								item.LastUpdate
+								item.LastUpdate,
+								zwid
 							], false);
 						});
 						mTable.fnDraw();
