@@ -202,6 +202,14 @@ define(['app'], function (app) {
 								item.SignalLevel = "-";
 								item.BatteryLevel = 255;
 							}
+							var SFLD = "";
+							SetDevicesFilter = function (filter) {
+								if ( mTable.DataTable().search() == filter) {
+									mTable.fnFilter("");
+								} else {
+									mTable.fnFilter(filter);
+								}
+							}
 							var itemSubIcons = "";
 							var itemChecker = '<input type="checkbox" class="noscheck" name="Check-' + item.ID + ' id="Check-' + item.ID + '" value="' + item.idx + '" />';
 							var TypeImg = item.TypeImg;
@@ -361,17 +369,13 @@ define(['app'], function (app) {
 							}
 							var ID = item.ID;
 
-							SetDevicesFilter = function (filter) {
-								mTable.fnFilter(filter);
-							}
-							var zwid = "";
 							if (typeof(item.HardwareTypeVal) != 'undefined' && item.HardwareTypeVal == 21) {
 								if (item.ID.substr(-4, 2) == '00') {
 									ID = item.ID.substr(1,item.ID.length-2) + '<a onclick="SetDevicesFilter(\'0x' + item.ID.substr(-2, 2) + '\')">' + item.ID.substr(-2, 2) + '</a>';
-									zwid = "0x"+item.ID.substr(-2, 2);
+									SFLD = "0x"+item.ID.substr(-2, 2);
 								} else {
 									ID = item.ID.substr(1,item.ID.length-4) + '<a onclick="SetDevicesFilter(\'0x' + item.ID.substr(-4, 2) + '\')">' + item.ID.substr(-4, 2) + '</a>' + item.ID.substr(-2, 2);
-									zwid = "0x"+item.ID.substr(-4, 2);
+									SFLD = "0x"+item.ID.substr(-4, 2);
 								}
 							}
 							var hwname = '<a onclick="SetDevicesFilter(\'' + item.HardwareName + '\')">' + item.HardwareName + '</a>';
@@ -400,7 +404,7 @@ define(['app'], function (app) {
 								BatteryLevel,
 								itemSubIcons,
 								item.LastUpdate,
-								zwid
+								SFLD
 							], false);
 						});
 						mTable.fnDraw();
