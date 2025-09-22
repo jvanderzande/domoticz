@@ -38,11 +38,10 @@
 #define TADO_API_GET_TOKEN "https://login.tado.com/oauth2/token"
 
 #define TADO_POLL_LOGIN_INTERVAL 10
-#define TADO_POLL_INTERVAL 30		// The plugin should collect information from the API every n seconds.
 #define TADO_TOKEN_MAXLOOPS 12		// Default token validity is 600 seconds before it needs to be refreshed.
 									// Each cycle takes 30-35 seconds, so let's stay a bit on the safe side.
 
-CTado::CTado(const int ID)
+CTado::CTado(const int ID, const int PollInterval)
 {
 	m_HwdID = ID;
 
@@ -52,6 +51,8 @@ CTado::CTado(const int ID)
 	{
 		m_szRefreshToken = result[0][0];
 	}
+	if ((PollInterval > 10) && (PollInterval < 3600))
+		m_iPollInterval = PollInterval;
 }
 
 bool CTado::StartHardware()
@@ -252,7 +253,7 @@ bool CTado::GetAccessToken()
 		m_szAccessToken.clear();
 		m_szRefreshToken.clear();
 
-		Log(LOG_ERROR, "Going to start Login procedure in %d seconds", TADO_POLL_INTERVAL);
+		Log(LOG_ERROR, "Going to start Login procedure in %d seconds", m_iPollInterval);
 
 		return false;
 	}
@@ -609,8 +610,8 @@ bool CTado::Do_Login_Work()
 
 void CTado::Do_Work()
 {
-	Log(LOG_STATUS, "Worker started. Will poll every %d seconds.", TADO_POLL_INTERVAL);
-	int iSecCounter = TADO_POLL_INTERVAL - 3;
+	Log(LOG_STATUS, "Worker started. Will poll every %d seconds.", m_iPollInterval);
+	int iSecCounter = m_iPollInterval - 3;
 	int iTokenCycleCount = 0;
 
 	while (!IsStopRequested(1000))
@@ -620,7 +621,7 @@ void CTado::Do_Work()
 			m_LastHeartbeat = mytime(nullptr);
 		}
 
-		if (!(iSecCounter % TADO_POLL_INTERVAL == 0))
+		if (!(iSecCounter % m_iPollInterval == 0))
 			continue;
 
 		if (m_bDoGetEnvironment)

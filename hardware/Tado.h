@@ -13,8 +13,8 @@ class CTado : public CDomoticzHardwareBase
 {
 
 public:
+	CTado(const int ID, const int PollInterval);
 	~CTado() override = default;
-	CTado(int ID);
 	bool WriteToHardware(const char* pdata, unsigned char length) override;
 	void SetSetpoint(int id2, int id3, int id4, float temp);
 
@@ -84,6 +84,8 @@ private:
 	bool m_bDoGetEnvironment = true;
 	bool m_bDoGetHomes = true;
 	bool m_bDoGetZones = false;
+
+	int m_iPollInterval = 30;
 
 	std::vector<_tTadoHome> m_TadoHomes;
 };
