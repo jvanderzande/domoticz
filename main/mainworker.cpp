@@ -156,6 +156,8 @@
 // load notifications configuration
 #include "../notifications/NotificationHelper.h"
 
+#include "KWHStats.h"
+
 #ifdef WITH_GPIO
 #include "../hardware/Gpio.h"
 #include "../hardware/GpioPin.h"
@@ -1223,6 +1225,8 @@ bool MainWorker::Start()
 
 	HandleHourPrice();
 
+	CKWHStats::InitGlobal();
+
 	m_thread = std::make_shared<std::thread>([this] { Do_Work(); });
 	SetThreadName(m_thread->native_handle(), "MainWorker");
 	m_rxMessageThread = std::make_shared<std::thread>([this] { Do_Work_On_Rx_Messages(); });
@@ -1272,6 +1276,8 @@ bool MainWorker::Stop()
 		m_thread->join();
 		m_thread.reset();
 	}
+	CKWHStats::ExitGlobal();
+
 	return true;
 }
 
@@ -1739,6 +1745,9 @@ void MainWorker::Do_Work()
 			bool bDoCleanupShortlog = false;
 			if (difftime(atime, _ScheduleLastMinuteTime) > 30) //avoid RTC/NTP clock drifts
 			{
+#ifdef _DEBUG
+				CKWHStats::HandleKWHStatsHour();
+#endif
 				_ScheduleLastMinuteTime = atime;
 				_ScheduleLastMinute = ltime.tm_min;
 
@@ -1783,6 +1792,8 @@ void MainWorker::Do_Work()
 
 					m_sql.CheckDeviceTimeout();
 					m_sql.CheckBatteryLow();
+
+					CKWHStats::HandleKWHStatsHour();
 
 					//check for daily schedule
 					if (ltime.tm_hour == 0)
