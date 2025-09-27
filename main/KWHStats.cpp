@@ -64,6 +64,22 @@ bool CKWHStats::GetJSONStats(const uint64_t device_id, Json::Value &root)
 	return true;
 }
 
+bool CKWHStats::ResetJSONStats(const uint64_t device_id)
+{
+	std::unique_lock<std::mutex> lock(m_task_mutex);
+
+	m_sql.safe_query("DELETE FROM KWHStats WHERE (DeviceRowID==%" PRIu64 ")", device_id);
+
+	if (g_kwhstats.find(device_id) == g_kwhstats.end())
+	{
+		//First time we see this device, create the object
+		CKWHStats kwhs;
+		kwhs.Init(device_id);
+		g_kwhstats[device_id] = kwhs;
+	}
+	g_kwhstats[device_id].Init(device_id);// re-init
+	return true;
+}
 
 CKWHStats::CKWHStats()
 {
@@ -77,6 +93,13 @@ CKWHStats::~CKWHStats()
 void CKWHStats::Init(const uint64_t deviceID)
 {
 	m_device_id = deviceID;
+
+	// clean existing values
+	daily_hour_kwh.fill(0);
+	weekday_hour_kwh_raw.fill(0);
+	weekday_kwh.fill(0);
+	for (auto& arr : weekday_hour_kwh) arr.fill(0);
+
 	LoadFromDB();
 }
 
@@ -110,13 +133,7 @@ void CKWHStats::FinishDay()
 
 bool CKWHStats::LoadFromDB()
 {
-	// clean existing values
-	daily_hour_kwh.fill(0);
-	weekday_hour_kwh_raw.fill(0);
-	weekday_kwh.fill(0);
-	for (auto& arr : weekday_hour_kwh) arr.fill(0);
-
-	auto result = m_sql.safe_query("SELECT Value FROM KWHStats WHERE  (DeviceRowID==%" PRIu64 ")", m_device_id);
+	auto result = m_sql.safe_query("SELECT Value FROM KWHStats WHERE (DeviceRowID==%" PRIu64 ")", m_device_id);
 	if (result.empty())
 		return false;
 
@@ -194,7 +211,7 @@ bool CKWHStats::SaveToDB()
 
 	std::string out = JSonToRawString(root);
 
-	auto result = m_sql.safe_query("SELECT ID FROM KWHStats WHERE  (DeviceRowID==%" PRIu64 ")", m_device_id);
+	auto result = m_sql.safe_query("SELECT ID FROM KWHStats WHERE (DeviceRowID==%" PRIu64 ")", m_device_id);
 	// either insert or update
 	if (result.empty())
 	{

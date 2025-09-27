@@ -5238,6 +5238,22 @@ namespace http
 			root["status"] = "OK";
 			root["title"] = "GetkWhStats";
 		}
-		
+
+		void CWebServer::Cmd_ResetkWhStats(WebEmSession& session, const request& req, Json::Value& root)
+		{
+			if (session.rights != URIGHTS_ADMIN)
+			{
+				session.reply_status = reply::forbidden;
+				return; //Only admin user allowed
+			}
+			if (request::findValue(&req, "idx").empty())
+				return;
+			uint64_t idx = std::stoull(request::findValue(&req, "idx"));
+
+			CKWHStats::ResetJSONStats(idx);
+			root["status"] = "OK";
+			root["title"] = "ResetkWhStats";
+		}
+
 	} // namespace server
 } // namespace http
