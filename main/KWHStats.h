@@ -2,6 +2,11 @@
 #include <array>
 #include <cstdint>
 
+namespace Json
+{
+    class Value;
+};
+
 class CKWHStats
 {
 public:
@@ -12,7 +17,7 @@ public:
     CKWHStats();
     ~CKWHStats();
     void Init(uint64_t deviceID);
-    void AddHourValue(const int hour, const int Watt);
+    void AddHourValue(const int hour, const int wday, const int Watt);
     void FinishDay();
 
 
@@ -20,10 +25,11 @@ public:
     static void ExitGlobal();
     static void HandleKWHStatsHour();
     static void PeriodicSaveKWHStats(const int interval_seconds);
-
+    static bool GetJSONStats(const uint64_t device_id, Json::Value& root);
 private:
     bool LoadFromDB();
     bool SaveToDB();
+    void MakeJSONStats(Json::Value& root);
 
     uint64_t m_device_id = 0;
     bool m_bDirty = false;

@@ -50,6 +50,20 @@ void CKWHStats::PeriodicSaveKWHStats(const int interval_seconds) // default: eve
 	}
 }
 
+bool CKWHStats::GetJSONStats(const uint64_t device_id, Json::Value &root)
+{
+	std::unique_lock<std::mutex> lock(m_task_mutex);
+	if (g_kwhstats.find(device_id) == g_kwhstats.end())
+	{
+		//First time we see this device, create the object
+		CKWHStats kwhs;
+		kwhs.Init(device_id);
+		g_kwhstats[device_id] = kwhs;
+	}
+	g_kwhstats[device_id].MakeJSONStats(root);
+	return true;
+}
+
 
 CKWHStats::CKWHStats()
 {
@@ -66,17 +80,12 @@ void CKWHStats::Init(const uint64_t deviceID)
 	LoadFromDB();
 }
 
-void CKWHStats::AddHourValue(const int hour, const int Watt)
+void CKWHStats::AddHourValue(const int hour, const int wday, const int Watt)
 {
 	if (hour < 0 || hour > 23)
 		return;
 	daily_hour_kwh[hour] = (daily_hour_kwh[hour] != 0) ? (daily_hour_kwh[hour] + Watt) / 2 : Watt;
 	weekday_hour_kwh_raw[hour] = Watt;
-
-	const time_t atime = time(nullptr);
-	struct tm now;
-	localtime_r(&atime, &now);
-	int wday = now.tm_wday; // days since Sunday [0-6]
 
 	weekday_hour_kwh[wday][hour] = (weekday_hour_kwh[wday][hour] != 0) ? (weekday_hour_kwh[wday][hour] + Watt) / 2 : Watt;
 
@@ -153,15 +162,8 @@ bool CKWHStats::LoadFromDB()
 	return true;
 }
 
-bool CKWHStats::SaveToDB()
+void CKWHStats::MakeJSONStats(Json::Value &root)
 {
-	if (!m_bDirty)
-		return false; // nothing changed, no need to save
-
-	m_bDirty = false;
-
-	Json::Value root;
-
 	root["daily_hour_kwh"] = Json::Value(Json::arrayValue);
 	for (int hour = 0; hour < 24; hour++)
 		root["daily_hour_kwh"].append(daily_hour_kwh[hour]);
@@ -178,6 +180,17 @@ bool CKWHStats::SaveToDB()
 		for (int hour = 0; hour < 24; hour++)
 			root["weekday_hour_kwh"][wday].append(weekday_hour_kwh[wday][hour]);
 	}
+}
+
+bool CKWHStats::SaveToDB()
+{
+	if (!m_bDirty)
+		return false; // nothing changed, no need to save
+
+	m_bDirty = false;
+
+	Json::Value root;
+	MakeJSONStats(root);
 
 	std::string out = JSonToRawString(root);
 
@@ -213,6 +226,7 @@ void CKWHStats::HandleKWHStatsHour()
 	struct tm last_hour;
 	localtime_r(&atime, &last_hour);
 	const int hour = last_hour.tm_hour;
+	const int wday = last_hour.tm_wday;
 
 	char szStartTime[20];
 	snprintf(szStartTime, sizeof(szStartTime), "%04d-%02d-%02d %02d:%02d:%02d", last_hour.tm_year + 1900, last_hour.tm_mon + 1, last_hour.tm_mday, last_hour.tm_hour, 0, 0);
@@ -257,7 +271,7 @@ void CKWHStats::HandleKWHStatsHour()
 
 			const int Wh = static_cast<int>(actUsage - actDeliv);
 
-			g_kwhstats[device_id].AddHourValue(hour, Wh);
+			g_kwhstats[device_id].AddHourValue(hour, wday, Wh);
 
 			if (actHour == 0)
 			{
@@ -294,7 +308,7 @@ void CKWHStats::HandleKWHStatsHour()
 
 			const int Wh = static_cast<int>(actUsage);
 
-			g_kwhstats[device_id].AddHourValue(hour, Wh);
+			g_kwhstats[device_id].AddHourValue(hour, wday, Wh);
 
 			if (actHour == 0)
 			{

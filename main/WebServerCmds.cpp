@@ -26,6 +26,7 @@
 #include "LuaHandler.h"
 #include "Logger.h"
 #include "SQLHelper.h"
+#include "KWHStats.h"
 #include "../httpclient/HTTPClient.h"
 #include "../hardware/hardwaretypes.h"
 #include "../webserver/Base64.h"
@@ -5223,6 +5224,19 @@ namespace http
 					root["result"]["ESettings"] = jesettings;
 				}
 			}
+		}
+
+		void CWebServer::Cmd_GetkWhStats(WebEmSession& session, const request& req, Json::Value& root)
+		{
+			if (request::findValue(&req, "idx").empty())
+				return;
+			uint64_t idx = std::stoull(request::findValue(&req, "idx"));
+
+			Json::Value result;
+			CKWHStats::GetJSONStats(idx, result);
+			root["result"] = result;
+			root["status"] = "OK";
+			root["title"] = "GetkWhStats";
 		}
 		
 	} // namespace server
