@@ -245,7 +245,7 @@ void CKWHStats::HandleKWHStatsHour()
 	const int hour = last_hour.tm_hour;
 	const int wday = last_hour.tm_wday;
 
-	char szStartTime[20];
+	char szStartTime[30];
 	snprintf(szStartTime, sizeof(szStartTime), "%04d-%02d-%02d %02d:%02d:%02d", last_hour.tm_year + 1900, last_hour.tm_mon + 1, last_hour.tm_mday, last_hour.tm_hour, 0, 0);
 
 	//First handle all P1 meters
