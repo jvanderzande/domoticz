@@ -12,6 +12,7 @@ Version 2025.xxxx
 - Fixed: MQTT-AD, fix issue where brightness and RGB command topic are different
 - Fixed: MQTT-AD, preserve select options when updating a device
 - Fixed: Replace device now also copies 'Options' field
+- Changed: Enphase query Token method
 - Changed: mDNS, hostname now lowercase
 - Changed: MQTT-AD, added support for color_temp_command_template
 - Changed: TADO, Added fixed API endpoint
