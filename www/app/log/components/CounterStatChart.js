@@ -95,6 +95,13 @@ define(['app', 'luxon'], function (app, luxon) {
 			legend: {
 				enabled: false
 			},
+			exporting: {
+				buttons: {
+					contextButton: {
+						menuItems: $scope.chart_buttons
+					}
+				}
+			},
 			plotOptions: {
 				series: {
 					animation: false,
@@ -239,6 +246,22 @@ define(['app', 'luxon'], function (app, luxon) {
 			}
 		}
 		
+		self.ResetStats = function() {
+			bootbox.confirm($.t("Are you sure to delete the Log?\n\nThis action can not be undone!"), function (result) {
+				if (result == true) {
+					$http({
+						url: "json.htm?type=command&param=resetkwhstats&idx=" + $scope.idx,
+						async: false,
+						dataType: 'json'
+					}).then(function successCallback(response) {
+						self.getStats();
+					}, function errorCallback(response) {
+						self.getStats();
+					});
+				}
+			});
+		}
+		
 		self.$onInit = function () {
 			$scope.idx = self.device.idx;
 			$scope.chartDefinitionDay = JSON.parse(JSON.stringify($scope.chartDefinitionBase));
@@ -246,6 +269,20 @@ define(['app', 'luxon'], function (app, luxon) {
 				JSON.parse(JSON.stringify($scope.chartSeriesDailyHour))
 			];
 			$scope.chartDefinitionDay.series[0].data = $scope.chart_weekday_hour_kwh;
+			
+			$scope.chart_buttons = Highcharts.getOptions().exporting.buttons.contextButton.menuItems.slice();
+			$scope.chart_buttons.push({
+				separator: true
+			});
+			$scope.chart_buttons.push({
+				text: $.t('Reset Internal Statistics'),
+				onclick: function () {
+					self.ResetStats();
+				},
+				separator: false
+			});
+			$scope.chartDefinitionDay.exporting.buttons.contextButton.menuItems = $scope.chart_buttons;
+	
 			self.getStats();
 			
 			$scope.mytimer = $interval(function () { $scope.OnTimer(); }, 60 *1000);
