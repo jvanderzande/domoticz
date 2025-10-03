@@ -47,6 +47,13 @@ namespace http
 				return;
 			std::string sensorarea = request::findValue(&req, "sensorarea");
 			std::string srange = request::findValue(&req, "range");
+
+			if (srange == "stats")
+			{
+				Cmd_GetkWhStats(session, req, root);
+				return;
+			}
+
 			std::string sgroupby = request::findValue(&req, "groupby");
 			if (srange.empty() && sgroupby.empty())
 				return;

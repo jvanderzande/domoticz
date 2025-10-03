@@ -35,7 +35,7 @@
             p1MonthYearSeriesSuppliers: p1MonthYearSeriesSuppliers,
 			p1PastMonthYearSeriesSuppliers: p1PastMonthYearSeriesSuppliers,
             p1PriceSeriesSuppliers: p1PriceSeriesSuppliers,
-			p1TrendlineMonthYearSeriesSuppliers: p1TrendlineMonthYearSeriesSuppliers,
+			p1TrendlineMonthYearSeriesSuppliers: p1TrendlineMonthYearSeriesSuppliers
         };
 
         function counterDaySeriesSuppliers(deviceType) {
@@ -642,9 +642,7 @@
                     }
                 })
             ];
-			
-        }
-		
+        }		
     });
 
 });
