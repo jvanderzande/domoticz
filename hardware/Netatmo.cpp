@@ -1018,8 +1018,8 @@ bool CNetatmo::SetProgramState(const int uid, const int newState)
 			json_data["home"]["modules"][0]["scenario"] = scenario_Name;
 			_data = json_data.toStyledString();
 			//_data = "{\"home\":{\"id\":\"" + Home_id + "\",\"modules\":[{\"id\":\"" + module_id + "\",\"scenario\":\"" + State + "\"}]}}" ;
-		//}
-		else if (type_module == "")
+		}
+		else if (type_module == " ")
 		{
 			std::string State;
 			switch (newState)
@@ -1696,6 +1696,8 @@ void CNetatmo::GetHomesDataDetails()
 				}
 				//Get the module names
 				std::string roomNetatmoID;
+				std::string moduleName;
+
 				if (!home["modules"].empty())
 				{
 					for (auto module : home["modules"])
@@ -1710,10 +1712,13 @@ void CNetatmo::GetHomesDataDetails()
 							int Hardware_int = (int)moduleID;
 							//Debug(DEBUG_HARDWARE, "Homedata modules %lu -  %s in Home = %s" , moduleID, macID.c_str(), homeID.c_str());
 							if (!module["name"].empty())
+							{
 								m_ModuleNames[macID] = module["name"].asString();
+							}
 							else
-
+							{
 								m_ModuleNames[macID] = "unknown-" + macID;
+							}
 
 							for (auto device : module["modules_bridged"])
 							{
@@ -1755,6 +1760,7 @@ void CNetatmo::GetHomesDataDetails()
 					// Manual / Max / Home
 					std::string lName = moduleName + " - Room";
 					int ChildID = 16;
+					int nValue = 0;
 					int crcId = Crc32(0, (const unsigned char*)roomNetatmoID.c_str(), roomNetatmoID.length());
 					int Image = 0;
 					bool bDropdown = true;
