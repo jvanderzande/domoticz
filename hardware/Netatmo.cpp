@@ -39,6 +39,7 @@
 //13    RF-Level
 //14    Scenario Switch
 //15    Blinds
+//16    Status Room Switch
 
 // Some testfunctions for debugging
 void SaveJson2Disk(Json::Value str, std::string filename)
@@ -782,7 +783,7 @@ bool CNetatmo::SetProgramState(const int uid, const int newState)
 	std::string Home_id = m_DeviceHomeID[roomNetatmoID];      // Home_ID
 	Debug(DEBUG_HARDWARE, "SetProgramState - Device MAC %s - Type %s Bridge %s State: %d", module_id.c_str(), type_module.c_str(), Device_bridge.c_str(), newState);
 
-	//Log(LOG_STATUS, "SetProgramState - Device MAC %s - Type %s State: %d", module_id.c_str(), type_module.c_str(), newState);
+	Log(LOG_STATUS, "SetProgramState - Device MAC %s - Type %s State: %d", module_id.c_str(), type_module.c_str(), newState);
 
 	if (!m_thermostatModuleID[uid].empty())
 	{
@@ -1018,8 +1019,34 @@ bool CNetatmo::SetProgramState(const int uid, const int newState)
 			_data = json_data.toStyledString();
 			//_data = "{\"home\":{\"id\":\"" + Home_id + "\",\"modules\":[{\"id\":\"" + module_id + "\",\"scenario\":\"" + State + "\"}]}}" ;
 		//}
-		//else if (type_module == "")
-		//{
+		else if (type_module == "")
+		{
+			std::string State;
+			switch (newState)
+			{
+			case 0:
+				State = "off";
+				break;
+			case 10:
+				State = "manual";
+				break;
+			case 20:
+				State = "max";
+				break;
+			case 30:
+				State = "home";
+				break;
+			default:
+				Log(LOG_ERROR, "Netatmo: Invalid Room state!");
+				return false;
+			}
+			//
+			Json::Value json_data;
+			//json_data {"body":{"home":{"id":
+			json_data["home"]["id"] = Home_id;
+			json_data["home"]["modules"][0]["id"] = module_id;
+			json_data["home"]["modules"][0]["therm_setpoint_mode"] = State;
+			_data = json_data.toStyledString();
 			//setpoint of the room to away or comfort NLC
 			//_data = "{\"home\":{\"id\":\"" + Home_id + "\",\"rooms\":[{\"id\":\"" + module_id + "\",\"therm_setpoint_mode\":\"" + "manual" + "\",\"therm_setpoint_fp\":\"" + "away" + "\",\"therm_setpoint_end_time\":\"" + 1505368800 + "\"}]}}" ;
 
@@ -1668,6 +1695,7 @@ void CNetatmo::GetHomesDataDetails()
 					}
 				}
 				//Get the module names
+				std::string roomNetatmoID;
 				if (!home["modules"].empty())
 				{
 					for (auto module : home["modules"])
@@ -1676,7 +1704,6 @@ void CNetatmo::GetHomesDataDetails()
 						{
 							std::string type = module["type"].asString();
 							std::string macID = module["id"].asString();
-							std::string roomNetatmoID;
 							std::string module_id;
 							m_Device_types[macID] = type;
 							uint64_t moduleID = convert_mac(macID);
@@ -1725,7 +1752,46 @@ void CNetatmo::GetHomesDataDetails()
 				if (!home["therm_mode"].empty())
 				{
 					std::string schedule_mode = home["therm_mode"].asString();
+					// Manual / Max / Home
+					std::string lName = moduleName + " - Room";
+					int ChildID = 16;
+					int crcId = Crc32(0, (const unsigned char*)roomNetatmoID.c_str(), roomNetatmoID.length());
+					int Image = 0;
+					bool bDropdown = true;
+					bool bHideOff = true;
+					std::string Selector;
+
+					if (schedule_mode == "off")
+					{
+						nValue = 0;
+						Selector = "0";
+					}
+					else if (schedule_mode == "manual")
+					{
+						nValue = 10;
+						Selector = "10";
+					}
+					else if (schedule_mode == "max")
+					{
+						nValue = 20;
+						Selector = "20";
+					}
+					else if (schedule_mode == "home")
+					{
+						nValue = 30;
+						Selector = "30";
+					}
+
+					auto result = m_sql.safe_query("SELECT ID, nValue, sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%08X') AND (Unit==%d)", m_HwdID, crcId, ChildID);
+
+					if (!result.empty())
+                    {
+						int uId = std::stoi(result[0][0]);
+						//Debug(DEBUG_HARDWARE, "therm_mode uId %d", uId);
+					}
+					m_PowerDeviceID[crcId] = lName;
 					//Debug(DEBUG_HARDWARE, "therm_mode %s", schedule_mode.c_str());
+					SendSelectorSwitch(crcId, ChildID, Selector, lName, Image, bDropdown, "off|manual|max|home", "", bHideOff, m_Name);   // No RF-level - Battery level
 				}
 				if (!home["therm_setpoint_default_duration"].empty())
 				{
@@ -2369,9 +2435,9 @@ bool CNetatmo::ParseDashboard(const Json::Value& root, const int DevIdx, const i
 	std::string str_ID2;
 	std::stringstream bt;
 
-        // Hardware_ID mac to int
-        uint64_t Hardware_convert = convert_mac(Hardware_ID);
-        int Hardware_int = (int)Hardware_convert;
+    // Hardware_ID mac to int
+    uint64_t Hardware_convert = convert_mac(Hardware_ID);
+    int Hardware_int = (int)Hardware_convert;
 	std::stringstream hardware;
 
 	//convert (integer) ID to std::string
@@ -2579,7 +2645,7 @@ bool CNetatmo::ParseDashboard(const Json::Value& root, const int DevIdx, const i
 				std::string sValue = result[0][2];
 				//Debug(DEBUG_HARDWARE, "AirQuality uId %d %s", uId, name.c_str());
 				m_sql.UpdateDeviceValue("CustomImage", 27, std::to_string(uId));           //27
-	                }
+	        }
 		}
 	}
 
@@ -3079,7 +3145,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 						auto result = m_sql.safe_query("SELECT ID, nValue, sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%08X') AND (Unit==%d)", m_HwdID, crcId, NETATMO_PRESET_UNIT);
 
 						if (!result.empty())
-                                                {
+                        {
 							int uId = std::stoi(result[0][0]);
 							//Debug(DEBUG_HARDWARE, "Floodlight uId %d", uId);
 						}
@@ -3315,7 +3381,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 								std::string sValue = result[0][2];
 								//Debug(DEBUG_HARDWARE, "AirQualitySensor uId %d %s", uId, moduleName.c_str());
 								m_sql.UpdateDeviceValue("CustomImage", 27, std::to_string(uId));           //27
-	        				        }
+	        				}
 						}
 					}
 
@@ -3399,7 +3465,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 							auto result = m_sql.safe_query("SELECT ID, nValue, sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%08X') AND (Unit==%d)", m_HwdID, crcId, ChildID);
 
 							if (!result.empty())
-                                                        {
+                            {
 								//
 								int uId = std::stoi(result[0][0]);
 								int nValue = std::stoi(result[0][1]);
@@ -3472,7 +3538,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 							std::string sValue = result[0][2];
 							//Debug(DEBUG_HARDWARE, "NRV uId %d", uId);
 							m_sql.UpdateDeviceValue("CustomImage", 36, std::to_string(uId));           //36
-                                                }
+                        }
 
 					}
 
@@ -3500,7 +3566,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 							auto result = m_sql.safe_query("SELECT ID, nValue, sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%08X') AND (Unit==%d)", m_HwdID, crcId, ChildID);
 
 							if (!result.empty())
-                                                        {
+                            {
 								int uId = std::stoi(result[0][0]);
 								int nValue = std::stoi(result[0][1]);
 								std::string sValue = result[0][2];
@@ -3510,7 +3576,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
                                                                 	m_sql.UpdateDeviceValue("SwitchType", STYPE_Dimmer, std::to_string(uId)); // 7
 									//m_sql.UpdateDeviceValue("CustomImage", 7, std::to_string(uId));         // 7
 								}
-                                                        }
+                            }
 
 						}
 						else
