@@ -7,6 +7,7 @@ Version 2025.xxxx
 - Implemented: MQTT-AD, added support for IR Blaster (Tuya iH-F8260)
 - Implemented: MQTT-AD, handling battery low boolean sensors
 - Implemented: MQTT-AD, allow publishing messages
+- Implemented: P1 Chart, Report: Added Total Column (Usage-Return)
 - Implemented: Rain Rate notification
 - Implemented: Support for Humidity only graph
 - Fixed: MQTT-AD, fix issue where brightness and RGB command topic are different
