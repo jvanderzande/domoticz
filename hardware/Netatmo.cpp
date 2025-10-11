@@ -710,6 +710,7 @@ bool CNetatmo::WriteToHardware(const char* pdata, const unsigned char /*length*/
                                 localtime_r(&now, &etime);
 		}
 
+		Json::Value root;
 		std::string sResult;
 		std::stringstream sstr;
 		std::stringstream bstr;
@@ -726,8 +727,9 @@ bool CNetatmo::WriteToHardware(const char* pdata, const unsigned char /*length*/
 		if (!bRet)
 		{
 			Log(LOG_ERROR, "NetatmoThermostat: Error setting selector!");
-			return;
+			return false;
 		}
+		return true;
 	}
 	if (packettype == pTypeGeneralSwitch)
 	{
