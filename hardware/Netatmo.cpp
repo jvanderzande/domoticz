@@ -1759,8 +1759,8 @@ void CNetatmo::GetHomesDataDetails()
 				}
 				if (!home["therm_mode"].empty())
 				{
-					Debug(DEBUG_HARDWARE, "therm_mode %s", home["therm_mode"].c_str());
 					std::string schedule_mode = home["therm_mode"].asString();
+					Debug(DEBUG_HARDWARE, "Home therm_mode %s", schedule_mode.c_str());
 					// Manual / Max / Home
 
 				}
@@ -2064,7 +2064,7 @@ void CNetatmo::Get_RoomMeasure(std::string& home_id, std::string& room_id, std::
 	Json::Value root;    // root JSON object
 	// https://api.netatmo.com/api/getroommeasure
 	Debug(DEBUG_HARDWARE, "Get_RoomMeasure Status %s Room %s device %s |", home_id.c_str(), room_id.c_str(), device_id.c_str());
-	home_data = "home_id=" + home_id + "&room_id=" + room_id + "&scale=" + "30min" + "&type=" + "temperature&type=sp_temperature" + "&date_begin=" + "" + "&date_end=" + "" + "&limit=" + "1" + "&optimize=" + "false" + "&real_>
+	home_data = "home_id=" + home_id + "&room_id=" + room_id + "&scale=" + "30min" + "&type=" + "temperature&type=sp_temperature" + "&date_begin=" + "" + "&date_end=" + "" + "&limit=" + "1" + "&optimize=" + "false" + "&real_time=" + "false";
 	bool bRet;           //Parsing status
 	std::string roomName = m_RoomNames[room_id];
 
