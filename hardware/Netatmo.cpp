@@ -664,6 +664,71 @@ bool CNetatmo::WriteToHardware(const char* pdata, const unsigned char /*length*/
 		SetSchedule(uid, level);
 		return true;
 	}
+	//This is the selector switch for the Rooms
+	if (int)(pCmd->LIGHTING2.unitcode) == 16)
+	{
+		// Recast raw data to get switch specific data
+		const _tGeneralSwitch* xcmd = reinterpret_cast<const _tGeneralSwitch*>(pdata);
+		std::string mode;
+		int selectorLevel = xcmd->level;
+
+		switch (selectorLevel)
+		{
+			case 0:
+				mode = "off";      //The Thermostat is off (Not Suported by  Thermostat)
+				break;
+			case 10:
+				mode = "schedule"; //The Thermostat is currently following its weekly schedule
+				break;
+			case 20:
+				mode = "max";     //The Thermostat is currently applying the Max temperature
+				break;
+			case 30:
+				mode = "home";       //he Thermostat is currently following the Home schedule
+				break;
+			default:
+				Log(LOG_ERROR, "Netatmo: Invalid Schedule state!");
+				return false;
+        }
+
+		//We change the setpoint for one hour
+		time_t now = mytime(nullptr);
+		struct tm etime;
+		localtime_r(&now, &etime);
+		time_t end_time;
+		int isdst = etime.tm_isdst;
+		bool goodtime = false;
+
+		while (!goodtime)
+		{
+                        etime.tm_isdst = isdst;
+                        etime.tm_hour += 1;
+                        end_time = mktime(&etime);
+                        goodtime = (etime.tm_isdst == isdst);
+                        isdst = etime.tm_isdst;
+                        if (!goodtime)
+                                localtime_r(&now, &etime);
+		}
+
+		std::string sResult;
+		std::stringstream sstr;
+		std::stringstream bstr;
+		std::string home_data;
+		bool ret = false;
+		bool bRet;              //Parsing status
+		std::string roomNetatmoID = m_DeviceModuleID[uid];
+		std::string Home_id = m_DeviceHomeID[roomNetatmoID];      // Home_ID
+
+		home_data = "home_id=" + Home_id + "&room_id=" + roomNetatmoID.c_str() + "&mode=" + mode + "&endtime=" + std::to_string(end_time) + "&";
+		// https://api.netatmo.com/api/setroomthermpoint?home_id=xxxxxx&room_id=xxxxxxx&mode=manual&temp=22&endtime=xxxxxxxxx
+		Get_Response_API(NETYPE_SETROOMTHERMPOINT, sResult, home_data, bRet, root, "");
+
+		if (!bRet)
+		{
+			Log(LOG_ERROR, "NetatmoThermostat: Error setting selector!");
+			return;
+		}
+	}
 	if (packettype == pTypeGeneralSwitch)
 	{
 		Log(LOG_STATUS, "Packettype pTypeGeneralSwitch ");
@@ -1236,6 +1301,7 @@ void CNetatmo::SetSetpoint(unsigned long ID, const float temp)
 	std::string name = m_ModuleNames[module_id];
 	std::string roomNetatmoID = m_RoomIDs[module_id];
 	std::string Home_id = m_DeviceHomeID[roomNetatmoID];      // Home_ID
+	std::string mode = m_Room_mode[roomNetatmoID];
 	//Debug(DEBUG_HARDWARE, "Netatmo Thermostat MAC; %s in Room ID = %s in Home: %s", module_id.c_str(), roomNetatmoID.c_str(), Home_id.c_str());
 	// mode of Room "manual" / "max" / "home"
 	std::string Mode = "manual";
@@ -1285,21 +1351,13 @@ void CNetatmo::SetSetpoint(unsigned long ID, const float temp)
 		// https://api.netatmo.com/api/setroomthermpoint?home_id=xxxxxx&room_id=xxxxxxx&mode=manual&temp=22&endtime=xxxxxxxxx
 		Get_Response_API(NETYPE_SETROOMTHERMPOINT, sResult, home_data, bRet, root, "");
 	}
-	else         // Not used ??
+	else
 	{
-		//find module id
-		std::string module_MAC = m_thermostatModuleID[ID];
-
-		if (module_MAC.empty())
-		{
-			Log(LOG_ERROR, "NetatmoThermostat: No thermostat or valve found in online devices!");
-			return;
-		}
-
-		home_data = "home_id=" + Home_id + "&room_id=" + roomNetatmoID.c_str() + "&mode=" + Mode  + "&temp=" + std::to_string(temp)  + "&endtime=" + std::to_string(end_time) + "&get_favorites=true&";
+		//Room Selector Switch
+		Log(LOG_STATUS, "Netatmo Room SetSetpoint");
+		home_data = "home_id=" + Home_id + "&room_id=" + roomNetatmoID.c_str() + "&mode=" + mode + "&endtime=" + std::to_string(end_time) + "&get_favorites=true&";
 		// https://api.netatmo.com/api/setroomthermpoint?home_id=xxxxxx&room_id=xxxxxxx&mode=manual&temp=22&endtime=xxxxxxxxx
 		Get_Response_API(NETYPE_SETROOMTHERMPOINT, sResult, home_data, bRet, root, "");
-		Log(LOG_STATUS, "Netatmo module SetSetpoint else ? ");
 	}
 
 	if (!bRet)
@@ -3463,6 +3521,12 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 						uint64_t roomid = convert_mac(roomNetatmoID);
 						int Room_int = int(roomid);
 						//int Room_int = stoi(roomNetatmoID); // std::__throw_out_of_range
+						m_DeviceModuleID[Room_int] = roomNetatmoID;            // mac-adres
+						m_Device_types[roomNetatmoID] = "room";
+						m_RoomIDs[roomNetatmoID] = roomNetatmoID;
+						//type_module == "room";
+						m_ModuleNames[module_id] = moduleName;
+
 						SendSelectorSwitch(Room_int, 16, room_mode_str, moduleName + " - Room", 15, true, "Off|Schedule|Max|Home", "", true, m_Name);   // No RF-level - Battery level visible
 
 						float SP_temp;
