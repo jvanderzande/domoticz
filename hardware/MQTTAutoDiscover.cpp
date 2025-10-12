@@ -1633,9 +1633,12 @@ void MQTTAutoDiscover::on_auto_discovery_message(const struct mosquitto_message*
 		}
 		else if (pSensor->component_type == "fan")
 		{
-			if (pSensor->percentage_command_topic.empty())
+			if (
+				pSensor->percentage_command_topic.empty()
+				&& pSensor->preset_modes.empty()
+				)
 			{
-				Log(LOG_ERROR, "A fan should have a percentage_command_topic!");
+				Log(LOG_ERROR, "A fan should have a percentage_command_topic or preset modes!");
 				return;
 			}
 			handle_auto_discovery_fan(pSensor, message, "");
