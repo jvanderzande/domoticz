@@ -11,7 +11,7 @@ namespace Json
 class Enever : public CDomoticzHardwareBase
 {
 public:
-	Enever(int ID, const std::string& szToken, const std::string& szProvider);
+	Enever(int ID, const std::string& szToken, const std::string& szProvider, const bool bUseQuarterPrices);
 	~Enever() override = default;
 	void ActualizePrices();
 	bool WriteToHardware(const char* pdata, unsigned char length) override;
@@ -36,6 +36,8 @@ private:
 	std::string m_szToken;
 	std::string m_szProviderElectricity;
 	std::string m_szProviderGas;
+
+	bool m_bUseQuarterPrices = false;
 
 	std::string m_szCurrentElectricityPrices;
 	std::string m_szCurrentElectricityPrices_Tomorrow;

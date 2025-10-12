@@ -1078,7 +1078,7 @@ bool MainWorker::AddHardwareFromParams(
 		pHardware = new AlfenEve(ID, Address, 443, 30, Username, Password);
 		break;
 	case HTYPE_EneverPriceFeeds:
-		pHardware = new Enever(ID, Username, Extra);
+		pHardware = new Enever(ID, Username, Extra, (Mode1 != 0));
 		break;
 	case HTYPE_MitsubishiWF:
 		pHardware = new MitsubishiWF(ID, Address);
