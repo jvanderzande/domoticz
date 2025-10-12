@@ -669,6 +669,7 @@ bool CNetatmo::WriteToHardware(const char* pdata, const unsigned char /*length*/
 		// Recast raw data to get switch specific data
 		const _tGeneralSwitch* xcmd = reinterpret_cast<const _tGeneralSwitch*>(pdata);
 		std::string mode;
+		int uid = xcmd->id;       //switch ID
 		int selectorLevel = xcmd->level;
 
 		switch (selectorLevel)
