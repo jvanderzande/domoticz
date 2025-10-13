@@ -26,6 +26,7 @@
 #include "LuaHandler.h"
 #include "Logger.h"
 #include "SQLHelper.h"
+#include "KWHStats.h"
 #include "../httpclient/HTTPClient.h"
 #include "../hardware/hardwaretypes.h"
 #include "../webserver/Base64.h"
@@ -971,22 +972,21 @@ namespace http
 			if (idx.empty())
 				return;
 
-			int iVarID = atoi(idx.c_str());
+			const int iVarID = atoi(idx.c_str());
 
-			std::vector<std::vector<std::string>> result;
-			result = m_sql.safe_query("SELECT ID, Name, ValueType, Value, LastUpdate FROM UserVariables WHERE (ID==%d)", iVarID);
-			int ii = 0;
-			for (const auto& sd : result)
+			auto result = m_sql.safe_query("SELECT ID, Name, ValueType, Value, LastUpdate FROM UserVariables WHERE (ID==%d)", iVarID);
+			if (!result.empty())
 			{
-				root["result"][ii]["idx"] = sd[0];
-				root["result"][ii]["Name"] = sd[1];
-				root["result"][ii]["Type"] = sd[2];
-				root["result"][ii]["Value"] = sd[3];
-				root["result"][ii]["LastUpdate"] = sd[4];
-				ii++;
+				//gizmocuz, this should now have been an array [0], but maybe some users expect it now
+				auto sd = result[0];
+				root["result"][0]["idx"] = sd[0];
+				root["result"][0]["Name"] = sd[1];
+				root["result"][0]["Type"] = sd[2];
+				root["result"][0]["Value"] = sd[3];
+				root["result"][0]["LastUpdate"] = sd[4];
+				root["status"] = "OK";
+				root["title"] = "GetUserVariable";
 			}
-			root["status"] = "OK";
-			root["title"] = "GetUserVariable";
 		}
 
 		void CWebServer::Cmd_AllowNewHardware(WebEmSession& session, const request& req, Json::Value& root)
@@ -2744,6 +2744,7 @@ namespace http
 				int EBatteryWatt = atoi(request::findValue(&req, "EBatteryWatt").c_str());
 				int EBatterySoc = atoi(request::findValue(&req, "EBatterySoc").c_str());
 				int ETextSensor = atoi(request::findValue(&req, "ETextSensor").c_str());
+				int EOutsideTempSensor = atoi(request::findValue(&req, "EOutsideTempSensor").c_str());
 				int EExtra1 = atoi(request::findValue(&req, "EExtra1").c_str());
 				int EExtra2 = atoi(request::findValue(&req, "EExtra2").c_str());
 				int EExtra3 = atoi(request::findValue(&req, "EExtra3").c_str());
@@ -2753,8 +2754,10 @@ namespace http
 				std::string EExtra1Icon = request::findValue(&req, "EExtra1Icon");
 				std::string EExtra2Icon = request::findValue(&req, "EExtra2Icon");
 				std::string EExtra3Icon = request::findValue(&req, "EExtra3Icon");
+
 				bool bConvertWaterM3ToLiter = (request::findValue(&req, "EConvertWaterM3ToLiter") == "on" ? 1 : 0);
 				bool bDisplayTime = (request::findValue(&req, "EDisplayTime") == "on" ? 1 : 0);
+				bool bDisplayOutsideTemp = (request::findValue(&req, "EDisplayOutsideTemp") == "on" ? 1 : 0);
 				bool bDisplayFlowWithLines = (request::findValue(&req, "EDisplayFlowWithLines") == "on" ? 1 : 0);
 				bool bUseCustomIcons = (request::findValue(&req, "EUseCustomIcons") == "on" ? 1 : 0);
 
@@ -2766,6 +2769,7 @@ namespace http
 				ESettings["idBatteryWatt"] = EBatteryWatt;
 				ESettings["idBatterySoc"] = EBatterySoc;
 				ESettings["idTextSensor"] = ETextSensor;
+				ESettings["idOutsideTempSensor"] = EOutsideTempSensor;
 				ESettings["idExtra1"] = EExtra1;
 				ESettings["idExtra2"] = EExtra2;
 				ESettings["idExtra3"] = EExtra3;
@@ -2775,8 +2779,10 @@ namespace http
 				ESettings["Extra1Icon"] = EExtra1Icon;
 				ESettings["Extra2Icon"] = EExtra2Icon;
 				ESettings["Extra3Icon"] = EExtra3Icon;
+
 				ESettings["ConvertWaterM3ToLiter"] = bConvertWaterM3ToLiter;
 				ESettings["DisplayTime"] = bDisplayTime;
+				ESettings["DisplayOutsideTemp"] = bDisplayOutsideTemp;
 				ESettings["DisplayFlowWithLines"] = bDisplayFlowWithLines;
 				ESettings["UseCustomIcons"] = bUseCustomIcons;
 
@@ -4195,6 +4201,7 @@ namespace http
 			if (!result.empty())
 			{
 				int dType = atoi(result[0][0].c_str());
+				int sType = atoi(result[0][1].c_str());
 				if ((dType == pTypeTEMP) || (dType == pTypeTEMP_HUM) || (dType == pTypeTEMP_HUM_BARO))
 				{
 					//Allow old Temp or Temp+Hum or Temp+Hum+Baro devices to be replaced by new Temp or Temp+Hum or Temp+Hum+Baro
@@ -4208,6 +4215,13 @@ namespace http
 				{
 					result = m_sql.safe_query("SELECT ID, Name FROM DeviceStatus WHERE (Type=='%q') AND (SubType=='%q') AND (ID!=%" PRIu64 ")", result[0][0].c_str(),
 						result[0][1].c_str(), idx);
+
+					if ((dType == pTypeAirQuality) && (sType == sTypeVoc))
+					{
+						//Allow VOC sensors to be replaced by custom sensor
+						auto result2 = m_sql.safe_query("SELECT ID, Name FROM DeviceStatus WHERE (Type==%d) AND (SubType==%d) AND (ID!=%" PRIu64 ")", pTypeGeneral, sTypeCustom);
+						result.insert(result.end(), result2.begin(), result2.end());
+					}
 				}
 
 				std::sort(std::begin(result), std::end(result), [](std::vector<std::string> a, std::vector<std::string> b) { return a[1] < b[1]; });
@@ -4322,14 +4336,19 @@ namespace http
 			if ((idx.empty()) || (sused.empty()))
 				return;
 			std::vector<std::vector<std::string>> result;
-			result = m_sql.safe_query("SELECT Type,SubType,HardwareID,CustomImage FROM DeviceStatus WHERE (ID == '%q')", idx.c_str());
+			result = m_sql.safe_query("SELECT Type,SubType,HardwareID,CustomImage,Description FROM DeviceStatus WHERE (ID == '%q')", idx.c_str());
 			if (result.empty())
 				return;
 
 			std::string deviceid = request::findValue(&req, "deviceid");
 			std::string name = HTMLSanitizer::Sanitize(request::findValue(&req, "name")); stdstring_trim(name);
+
+			bool bHaveText = request::hasValue(&req, "text");
 			std::string text = HTMLSanitizer::Sanitize(request::findValue(&req, "text")); stdstring_trim(text);
+
+			bool bHaveDescription = request::hasValue(&req, "description");
 			std::string description = HTMLSanitizer::Sanitize(request::findValue(&req, "description")); stdstring_trim(description);
+
 			std::string sswitchtype = request::findValue(&req, "switchtype");
 			std::string maindeviceidx = request::findValue(&req, "maindeviceidx");
 			std::string addjvalue = request::findValue(&req, "addjvalue");
@@ -4379,6 +4398,9 @@ namespace http
 			int HwdID = atoi(sd[2].c_str());
 			std::string sHwdID = sd[2];
 			int OldCustomImage = atoi(sd[3].c_str());
+			std::string OldDescription = sd[4];
+			if (!bHaveDescription)
+				description = OldDescription;
 
 			int CustomImage = (!sCustomImage.empty()) ? std::stoi(sCustomImage) : OldCustomImage;
 
@@ -4417,9 +4439,12 @@ namespace http
 
 			if ((dType == pTypeGeneral) && (dSubType == sTypeTextStatus))
 			{
-				m_sql.safe_query("UPDATE DeviceStatus SET sValue='%q' WHERE (ID == '%q')", text.c_str(), idx.c_str());
-				m_mainworker.SetTextDevice(idx, text);
-				m_sql.UpdateLastUpdate(idx);
+				if (bHaveText)
+				{
+					m_sql.safe_query("UPDATE DeviceStatus SET sValue='%q' WHERE (ID == '%q')", text.c_str(), idx.c_str());
+					m_mainworker.SetTextDevice(idx, text);
+					m_sql.UpdateLastUpdate(idx);
+				}
 			}
 
 			if (bHasstrParam1)
@@ -5191,7 +5216,8 @@ namespace http
 			if (m_sql.GetPreferencesVar("ESettings", szESettings))
 			{
 				Json::Value jesettings;
-				bool ret = ParseJSon(szESettings, jesettings);
+				std::string sError;
+				bool ret = ParseJSon(szESettings, jesettings, &sError);
 				if (ret)
 				{
 					root["status"] = "OK";
@@ -5199,6 +5225,35 @@ namespace http
 				}
 			}
 		}
-		
+
+		void CWebServer::Cmd_GetkWhStats(WebEmSession& session, const request& req, Json::Value& root)
+		{
+			if (request::findValue(&req, "idx").empty())
+				return;
+			uint64_t idx = std::stoull(request::findValue(&req, "idx"));
+
+			Json::Value result;
+			CKWHStats::GetJSONStats(idx, result);
+			root["result"] = result;
+			root["status"] = "OK";
+			root["title"] = "GetkWhStats";
+		}
+
+		void CWebServer::Cmd_ResetkWhStats(WebEmSession& session, const request& req, Json::Value& root)
+		{
+			if (session.rights != URIGHTS_ADMIN)
+			{
+				session.reply_status = reply::forbidden;
+				return; //Only admin user allowed
+			}
+			if (request::findValue(&req, "idx").empty())
+				return;
+			uint64_t idx = std::stoull(request::findValue(&req, "idx"));
+
+			CKWHStats::ResetJSONStats(idx);
+			root["status"] = "OK";
+			root["title"] = "ResetkWhStats";
+		}
+
 	} // namespace server
 } // namespace http

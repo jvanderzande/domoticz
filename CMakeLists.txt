@@ -5,6 +5,7 @@ project(domoticz)
 
 INCLUDE(CheckIncludeFile)
 INCLUDE(CheckIncludeFiles)
+INCLUDE(CheckFunctionExists)
 INCLUDE(InstallRequiredSystemLibraries)
 INCLUDE(TestBigEndian)
 
@@ -12,7 +13,7 @@ INCLUDE(TestBigEndian)
 #
 #
 ## required min. libBoost version
-SET(DOMO_MIN_LIBBOOST_VERSION 1.66.0)
+SET(DOMO_MIN_LIBBOOST_VERSION 1.69.0)
 ##
 
 ### USER-SETTABLE OPTIONS
@@ -38,6 +39,11 @@ option(USE_OPENSSL_STATIC "Link OpenSSL static" NO)
 option(USE_STATIC_BOOST "Build with static BOOST libraries" YES)
 option(USE_STATIC_OPENZWAVE "Build with static OpenZwave libraries" YES)
 
+# Disable updater functionality
+option(DISABLE_UPDATER "Disable updater functionality" NO)
+IF(DISABLE_UPDATER)
+  add_definitions(-DDISABLE_UPDATER)
+ENDIF()
 
 # Developer-oriented options
 option(USE_PRECOMPILED_HEADER "Use precompiled header feature to speed up build time " YES)
@@ -154,6 +160,7 @@ main/Helper.cpp
 main/HTMLSanitizer.cpp
 main/IFTTT.cpp
 main/json_helper.cpp
+main/KWHStats.cpp
 main/localtime_r.cpp
 main/lsignal.cpp
 main/Logger.cpp
@@ -176,6 +183,7 @@ main/WebServerCommands.cpp
 main/WebServerHandleGraph.cpp
 main/WebServerHelper.cpp
 main/WindCalculation.cpp
+mdns/mdns.cpp
 iamserver/IamService.cpp
 push/BasePush.cpp
 push/FibaroPush.cpp
@@ -512,7 +520,7 @@ include_directories(${CMAKE_SOURCE_DIR}/main)
 ADD_CUSTOM_TARGET(revisiontag ALL)
 
 # creates appversion.h using cmake script
-ADD_CUSTOM_COMMAND(TARGET revisiontag COMMAND ${CMAKE_COMMAND}
+ADD_CUSTOM_COMMAND(TARGET revisiontag PRE_BUILD COMMAND ${CMAKE_COMMAND}
    -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
    -P ${CMAKE_CURRENT_SOURCE_DIR}/getgit.cmake)
 
@@ -675,14 +683,14 @@ ELSE(USE_STATIC_BOOST)
    message(STATUS "Linking against boost dynamic libraries")
 ENDIF(USE_STATIC_BOOST)
 
-find_package(Boost REQUIRED COMPONENTS thread system)
+find_package(Boost REQUIRED COMPONENTS thread)
 IF(Boost_FOUND)
     MESSAGE(STATUS "BOOST includes found at: ${Boost_INCLUDE_DIR}")
 ELSE(Boost_FOUND)
-    MESSAGE(FATAL_ERROR "Boost thread/system library not found on your system, try to get this installed.")
+    MESSAGE(FATAL_ERROR "Boost thread library not found on your system, try to get this installed.")
 ENDIF(Boost_FOUND)
 
-target_link_libraries(domoticz Boost::thread Boost::system)
+target_link_libraries(domoticz Boost::thread)
 
 # compare found vs required libBoost version
 IF(Boost_VERSION VERSION_LESS DOMO_MIN_LIBBOOST_VERSION)
@@ -787,19 +795,26 @@ ELSE()
   message(STATUS "Not found telldus-core (telldus-core.h), not adding tellstick support")
 ENDIF(TELLDUSCORE_INCLUDE)
 
-target_link_libraries(domoticz ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} ${MINIZIP_LIBRARIES} ${CURL_LIBRARIES} pthread ${MQTT_LIBRARIES} ${LUA_LIBRARIES} ${CMAKE_DL_LIBS} ${TELLDUS_LIBRARIES})
-target_link_libraries(domoticztester ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} ${MINIZIP_LIBRARIES} ${CURL_LIBRARIES} pthread ${MQTT_LIBRARIES} ${LUA_LIBRARIES} ${CMAKE_DL_LIBS} ${TELLDUS_LIBRARIES})
+# Handle resolving
+check_function_exists(res_init HAVE_LIBC_RESOLV)
+if(HAVE_LIBC_RESOLV)
+  set(RESOLV_LIBRARIES)
+else()
+  set(RESOLV_LIBRARIES -lresolv)
+endif()
 
-IF(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-  target_link_libraries(domoticz -lresolv)
-ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
+target_link_libraries(domoticz ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} ${MINIZIP_LIBRARIES} ${RESOLV_LIBRARIES} ${CURL_LIBRARIES} pthread ${MQTT_LIBRARIES} ${LUA_LIBRARIES} ${CMAKE_DL_LIBS} ${TELLDUS_LIBRARIES})
+target_link_libraries(domoticztester ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} ${MINIZIP_LIBRARIES} ${RESOLV_LIBRARIES} ${CURL_LIBRARIES} pthread ${MQTT_LIBRARIES} ${LUA_LIBRARIES} ${CMAKE_DL_LIBS} ${TELLDUS_LIBRARIES})
+
+IF(EXECINFO_LIBRARIES)
   target_link_libraries(domoticz ${EXECINFO_LIBRARIES})
-ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-  target_link_libraries(domoticz ${EXECINFO_LIBRARIES})
-ELSE()
-  target_link_libraries(domoticz -lrt -lresolv ${EXECINFO_LIBRARIES})
-  target_link_libraries(domoticztester -lrt -lresolv ${EXECINFO_LIBRARIES})
-ENDIF()
+ENDIF(EXECINFO_LIBRARIES)
+
+find_library(LIBRT rt)
+if(LIBRT)
+  target_link_libraries(domoticz -lrt)
+  target_link_libraries(domoticztester -lrt)
+endif()
 
 IF(USE_PRECOMPILED_HEADER)
   message(STATUS "Using precompiled headers")
@@ -858,4 +873,6 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/server_cert.pem DESTINATION ${CMAKE_IN
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts DESTINATION ${CMAKE_INSTALL_PREFIX} USE_SOURCE_PERMISSIONS)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/plugins DESTINATION ${CMAKE_INSTALL_PREFIX})
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/dzVents DESTINATION ${CMAKE_INSTALL_PREFIX})
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/updatedomo DESTINATION ${CMAKE_INSTALL_PREFIX} PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ)
+IF(OpenZWave)
+  install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Config DESTINATION ${CMAKE_INSTALL_PREFIX})
+ENDIF()

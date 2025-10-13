@@ -11,6 +11,7 @@ define(['app'], function (app) {
 		'The Things Network (MQTT/CayenneLPP) with LAN interface': ['MQTTParams', 2],
 		'MQTT Auto Discovery Client Gateway with LAN interface': ['MQTTParams', 3],
 		'RFLink Gateway MQTT': ['MQTTParams', 4],
+		'Tado Thermostat': 'TadoParams',
 	};
 
 	app.controller('HardwareController', function ($scope, $rootScope, $timeout, $http) {
@@ -333,8 +334,7 @@ define(['app'], function (app) {
 				(text.indexOf("Evohome") >= 0 && text.indexOf("script") >= 0) ||
 				(text.indexOf("YeeLight") >= 0) ||
 				(text.indexOf("Arilux AL-LC0x") >= 0) ||
-				(text.indexOf("sysfs GPIO") >= 0) ||
-				(text.indexOf("Tado") >= 0)
+				(text.indexOf("sysfs GPIO") >= 0)
 				)
 			 {
 				// if hardwaretype == 1000 => I2C sensors grouping
@@ -1214,7 +1214,7 @@ define(['app'], function (app) {
 			}
 			else if (text.indexOf("Toon") >= 0) {
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 				var agreement = $("#hardwarecontent #divenecotoon #agreement").val();
 				$.ajax({
 					url: "json.htm?type=command&param=updatehardware&htype=" + hardwaretype +
@@ -1238,7 +1238,7 @@ define(['app'], function (app) {
 			}
 			else if (text.indexOf("Tesla") >= 0) {
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 				var vinnr = $("#hardwarecontent #divtesla #vinnr").val();
 				var apikey = $("#hardwarecontent #divtesla #apikey").val();
 				var activeinterval = parseInt($("#hardwarecontent #divtesla #activeinterval").val());
@@ -1279,7 +1279,7 @@ define(['app'], function (app) {
 			}
 			else if (text.indexOf("Mercedes") >= 0) {
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 				var vinnr = $("#hardwarecontent #divmercedes #vinnr").val();
 				var activeinterval = parseInt($("#hardwarecontent #divmercedes #activeinterval").val());
 				if (activeinterval < 1) {
@@ -1320,7 +1320,7 @@ define(['app'], function (app) {
 				(text.indexOf("PVOutput") >= 0)
 			) {
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 				$.ajax({
 					url: "json.htm?type=command&param=updatehardware&htype=" + hardwaretype +
 					"&loglevel=" + logLevel +
@@ -1562,7 +1562,7 @@ define(['app'], function (app) {
 			}
 			else if (text.indexOf("Evohome via Web") >= 0) {
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 
 				var Pollseconds = parseInt($("#hardwarecontent #divevohomeweb #updatefrequencyevohomeweb").val());
 				if ( Pollseconds < 10 ) {
@@ -1640,7 +1640,7 @@ define(['app'], function (app) {
 				}
 
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 				$.ajax({
 					url: "json.htm?type=command&param=updatehardware&htype=" + hardwaretype +
 					"&loglevel=" + logLevel +
@@ -1926,8 +1926,7 @@ define(['app'], function (app) {
 				(text.indexOf("Tellstick") >= 0) ||
 				(text.indexOf("Motherboard") >= 0) ||
 				(text.indexOf("YeeLight") >= 0) ||
-				(text.indexOf("Arilux AL-LC0x") >= 0) ||
-				(text.indexOf("Tado") >= 0)
+				(text.indexOf("Arilux AL-LC0x") >= 0)
 			) {
 				$.ajax({
 					url: "json.htm?type=command&param=addhardware&htype=" + hardwaretype +
@@ -2410,7 +2409,7 @@ define(['app'], function (app) {
 					return;
 				}
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 				var extra = "";
 				var Mode1 = "";
 				var Mode2 = "";
@@ -2850,7 +2849,7 @@ define(['app'], function (app) {
 			}
 			else if (text.indexOf("Toon") >= 0) {
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 				var agreement = encodeURIComponent($("#hardwarecontent #divenecotoon #agreement").val());
 				$.ajax({
 					url: "json.htm?type=command&param=addhardware&htype=" + hardwaretype +
@@ -2873,7 +2872,7 @@ define(['app'], function (app) {
 			}
 			else if (text.indexOf("Tesla") >= 0) {
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 				var vinnr = encodeURIComponent($("#hardwarecontent #divtesla #vinnr").val());
 				var apikey = $("#hardwarecontent #divtesla #apikey").val();
 				var activeinterval = parseInt($("#hardwarecontent #divtesla #activeinterval").val());
@@ -2913,7 +2912,7 @@ define(['app'], function (app) {
 			}
 			else if (text.indexOf("Mercedes") >= 0) {
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 				var vinnr = encodeURIComponent($("#hardwarecontent #divmercedes #vinnr").val());
 				var activeinterval = parseInt($("#hardwarecontent #divmercedes #activeinterval").val());
 				if (activeinterval < 1) {
@@ -2954,7 +2953,7 @@ define(['app'], function (app) {
 				(text.indexOf("HTTP") >= 0)
 			) {
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 				$.ajax({
 					url: "json.htm?type=command&param=addhardware&htype=" + hardwaretype +
 					"&loglevel=" + logLevel +
@@ -2975,7 +2974,7 @@ define(['app'], function (app) {
 			}
 			else if (text.indexOf("Evohome via Web") >= 0) {
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 				var Pollseconds = parseInt($("#hardwarecontent #divevohomeweb #updatefrequencyevohomeweb").val());
 				if ( Pollseconds < 10 ) {
 					Pollseconds = 60;
@@ -3036,7 +3035,7 @@ define(['app'], function (app) {
 				}
 
 				var username = $("#hardwarecontent #divlogin #username").val();
-				var password = encodeURIComponent($("#hardwarecontent #divlogin #password").val());
+				var password = $("#hardwarecontent #divlogin #password").val();
 
 				$.ajax({
 					url: "json.htm?type=command&param=addhardware&htype=" + hardwaretype +
@@ -4303,8 +4302,7 @@ define(['app'], function (app) {
 							(data["Type"].indexOf("PiFace") >= 0) ||
 							(data["Type"].indexOf("Tellstick") >= 0) ||
 							(data["Type"].indexOf("Yeelight") >= 0) ||
-							(data["Type"].indexOf("Arilux AL-LC0x") >= 0) ||
-							(data["Type"].indexOf("Tado") >= 0)
+							(data["Type"].indexOf("Arilux AL-LC0x") >= 0)
 						) {
 							//nothing to be set
 						}

@@ -47,6 +47,13 @@ namespace http
 				return;
 			std::string sensorarea = request::findValue(&req, "sensorarea");
 			std::string srange = request::findValue(&req, "range");
+
+			if (srange == "stats")
+			{
+				Cmd_GetkWhStats(session, req, root);
+				return;
+			}
+
 			std::string sgroupby = request::findValue(&req, "groupby");
 			if (srange.empty() && sgroupby.empty())
 				return;
@@ -80,6 +87,11 @@ namespace http
 			double AddjValue2 = atof(result[0][5].c_str());
 			std::string sOptions = result[0][6];
 			std::map<std::string, std::string> options = m_sql.BuildDeviceOptions(sOptions);
+
+			if (options["AddDBLogEntry"] == "true")
+			{
+				bIsManagedCounter = true;
+			}
 
 			double divider = m_sql.GetCounterDivider(int(metertype), int(dType), float(AddjValue2));
 
@@ -119,7 +131,10 @@ namespace http
 			else
 			{
 				// week,year,month
-				if (sensor == "temp")
+				if (
+					(sensor == "temp")
+					|| (sensor == "hum")
+					)
 					dbasetable = "Temperature_Calendar";
 				else if (sensor == "rain")
 					dbasetable = "Rain_Calendar";
@@ -504,9 +519,9 @@ namespace http
 										root["result"][ii]["v1"] = szTmp;
 										sprintf(szTmp, "%ld", curUsage2);
 										root["result"][ii]["v2"] = szTmp;
-										sprintf(szTmp, "%ld", curDeliv1);
+										sprintf(szTmp, "%ld", -curDeliv1);
 										root["result"][ii]["r1"] = szTmp;
-										sprintf(szTmp, "%ld", curDeliv2);
+										sprintf(szTmp, "%ld", -curDeliv2);
 										root["result"][ii]["r2"] = szTmp;
 									}
 									else
@@ -514,7 +529,7 @@ namespace http
 										//Simple
 										sprintf(szTmp, "%ld", curUsage1 + curUsage2);
 										root["result"][ii]["v"] = szTmp;
-										sprintf(szTmp, "%ld", curDeliv1 + curDeliv2);
+										sprintf(szTmp, "%ld", -(curDeliv1 + curDeliv2));
 										root["result"][ii]["r"] = szTmp;
 									}
 									long pUsage1 = (long)(actUsage1 - firstUsage1);
@@ -526,7 +541,7 @@ namespace http
 									{
 										long pDeliv1 = (long)(actDeliv1 - firstDeliv1);
 										long pDeliv2 = (long)(actDeliv2 - firstDeliv2);
-										sprintf(szTmp, "%ld", pDeliv1 + pDeliv2);
+										sprintf(szTmp, "%ld", -(pDeliv1 + pDeliv2));
 										root["result"][ii]["eg"] = szTmp;
 									}
 
@@ -2059,7 +2074,10 @@ namespace http
 					sprintf(szDateStartPrev, "%04d-%02d-%02d", tm2.tm_year + 1900 - 1, tm2.tm_mon + 1, tm2.tm_mday);
 				}
 
-				if (sensor == "temp")
+				if (
+					(sensor == "temp")
+					|| (sensor == "hum")
+					)
 				{
 					root["status"] = "OK";
 
@@ -2069,11 +2087,14 @@ namespace http
 						std::string var_name = request::findValue(&req, "var_name");
 						MakeCompareDataSensor(root, sgroupby, dbasetable, idx, var_name);
 
-						if (tempsign == 'F')
+						if (sensor == "temp")
 						{
-							for (auto& itt : root["result"])
+							if (tempsign == 'F')
 							{
-								itt["s"] = ConvertTemperature(itt["s"].asDouble(), tempsign);
+								for (auto& itt : root["result"])
+								{
+									itt["s"] = ConvertTemperature(itt["s"].asDouble(), tempsign);
+								}
 							}
 						}
 						return;
@@ -3038,15 +3059,16 @@ namespace http
 						}
 						root["title"] = "Graph " + sensor + " " + srange;
 
-						result = m_sql.safe_query("SELECT Value1,Value2, Date FROM %s WHERE (DeviceRowID==%" PRIu64 " AND Date>='%q' AND Date<='%q') ORDER BY Date ASC",
+						result = m_sql.safe_query("SELECT Value1,Value2,Value3,Date FROM %s WHERE (DeviceRowID==%" PRIu64 " AND Date>='%q' AND Date<='%q') ORDER BY Date ASC",
 							dbasetable.c_str(), idx, szDateStart, szDateEnd);
 						if (!result.empty())
 						{
 							for (const auto& sd : result)
 							{
-								root["result"][ii]["d"] = sd[2].substr(0, 16);
+								root["result"][ii]["d"] = sd[3].substr(0, 16);
 								root["result"][ii]["u_min"] = atof(sd[0].c_str()) / 10.0F;
 								root["result"][ii]["u_max"] = atof(sd[1].c_str()) / 10.0F;
+								root["result"][ii]["u_avg"] = static_cast<int>((atof(sd[2].c_str()) / 10.0F) + 0.5F);
 								ii++;
 							}
 						}
@@ -3689,12 +3711,13 @@ namespace http
 					}
 					else if (dType == pTypeUsage)
 					{
-						result = m_sql.safe_query("SELECT MIN(Value), MAX(Value) FROM Meter WHERE (DeviceRowID=%" PRIu64 " AND Date>='%q')", idx, szDateEnd);
+						result = m_sql.safe_query("SELECT MIN(Value), MAX(Value), AVG(Value) FROM Meter WHERE (DeviceRowID=%" PRIu64 " AND Date>='%q')", idx, szDateEnd);
 						if (!result.empty())
 						{
 							root["result"][ii]["d"] = szDateEnd;
 							root["result"][ii]["u_min"] = atof(result[0][0].c_str()) / 10.0F;
 							root["result"][ii]["u_max"] = atof(result[0][1].c_str()) / 10.0F;
+							root["result"][ii]["u_avg"] = static_cast<int>((atof(result[0][2].c_str()) / 10.0F) + 0.5F);
 							ii++;
 						}
 					}

@@ -372,12 +372,10 @@ void MQTT::on_message(const struct mosquitto_message *message)
 					color.b = (uint8_t)b;
 					brightnessAdj = hsb[2];
 				}
-				// Debug(DEBUG_NORM, "setcolbrightnessvalue: color: '%s', bri: '%s'", color.toString().c_str(), brightness.c_str());
 			}
 			else if (!hex.empty())
 			{
 				uint64_t ihex = hexstrtoui64(hex);
-				// Debug(DEBUG_NORM, "setcolbrightnessvalue: hex: '%s', ihex: %" PRIx64 ", bri: '%s', iswhite: '%s'", hex.c_str(), ihex, brightness.c_str(), iswhite.c_str());
 				uint8_t r = 0;
 				uint8_t g = 0;
 				uint8_t b = 0;
@@ -420,7 +418,6 @@ void MQTT::on_message(const struct mosquitto_message *message)
 				}
 				if (iswhite == "true")
 					color.mode = ColorModeWhite;
-				// Debug(DEBUG_NORM, "setcolbrightnessvalue: trgbww: %02x%02x%02x%02x%02x, color: '%s'", r, g, b, cw, ww, color.toString().c_str());
 			}
 			else if (!hue.empty())
 			{
@@ -436,7 +433,6 @@ void MQTT::on_message(const struct mosquitto_message *message)
 				color = _tColor((uint8_t)r, (uint8_t)g, (uint8_t)b, 0, 0, ColorModeRGB);
 				if (iswhite == "true")
 					color.mode = ColorModeWhite;
-				// Debug(DEBUG_NORM, "setcolbrightnessvalue2: hue: %f, rgb: %02x%02x%02x, color: '%s'", iHue, r, g, b, color.toString().c_str());
 			}
 
 			if (color.mode == ColorModeNone)
@@ -763,28 +759,30 @@ void MQTT::SendHeartbeat()
 	// not necessary for normal MQTT servers
 }
 
-void MQTT::SendMessage(const std::string &Topic, const std::string &Message)
+bool MQTT::SendMessage(const std::string &Topic, const std::string &Message)
 {
-	SendMessageEx(Topic, Message, QOS, m_bRetain);
+	return SendMessageEx(Topic, Message, QOS, m_bRetain);
 }
 
-void MQTT::SendMessageEx(const std::string& Topic, const std::string& Message, int qos, bool retain)
+bool MQTT::SendMessageEx(const std::string& Topic, const std::string& Message, int qos, bool retain)
 {
 	if (!m_IsConnected)
 	{
 		Log(LOG_STATUS, "Not Connected, failed to send message: %s", Message.c_str());
-		return;
+		return false;
 	}
 	if (Topic.empty())
-		return;
+		return false;
 	try
 	{
-		publish(nullptr, Topic.c_str(), static_cast<int>(Message.size()), Message.c_str(), qos, retain);
+		int ret = publish(nullptr, Topic.c_str(), static_cast<int>(Message.size()), Message.c_str(), qos, retain);
+		return (ret == MOSQ_ERR_SUCCESS);
 	}
 	catch (...)
 	{
 		Log(LOG_ERROR, "Failed to send message: %s", Message.c_str());
 	}
+	return false;
 }
 
 void MQTT::WriteInt(const std::string &sendStr)
@@ -822,13 +820,19 @@ void MQTT::SendDeviceInfo(const int HwdID, const uint64_t DeviceRowIdx, const st
 	}
 
 	std::vector<std::vector<std::string>> result;
-	result = m_sql.safe_query("SELECT HardwareID, OrgHardwareID, DeviceID, Unit, Name, [Type], SubType, nValue, sValue, SwitchType, SignalLevel, BatteryLevel, Options, Description, LastLevel, Color, LastUpdate "
+	result = m_sql.safe_query("SELECT Used, HardwareID, OrgHardwareID, DeviceID, Unit, Name, [Type], SubType, nValue, sValue, SwitchType, SignalLevel, BatteryLevel, Options, Description, LastLevel, Color, LastUpdate "
 				  "FROM DeviceStatus WHERE (HardwareID==%d) AND (ID==%" PRIu64 ")",
 				  HwdID, DeviceRowIdx);
 	if (!result.empty())
 	{
 		int iIndex = 0;
 		std::vector<std::string> sd = result[0];
+		bool bUsed = (atoi(sd[iIndex++].c_str()) != 0);
+		if (!bUsed)
+		{
+			//Device is not used, not publishing information
+			return;
+		}
 		std::string hwid = sd[iIndex++];
 		std::string org_hwid = sd[iIndex++];
 		std::string did = sd[iIndex++];

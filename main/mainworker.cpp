@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <set>
 
+#include "../mdns/mdns.hpp"
+
 //Hardware Devices
 #include "../hardware/hardwaretypes.h"
 #include "../hardware/RFXBase.h"
@@ -154,6 +156,8 @@
 // load notifications configuration
 #include "../notifications/NotificationHelper.h"
 
+#include "KWHStats.h"
+
 #ifdef WITH_GPIO
 #include "../hardware/Gpio.h"
 #include "../hardware/GpioPin.h"
@@ -194,6 +198,8 @@ extern http::server::_eWebCompressionMode g_wwwCompressMode;
 extern http::server::CWebServerHelper m_webservers;
 extern bool g_bUseEventTrigger;
 extern bool bNoCleanupDev;
+extern domoticz_mdns::mDNS m_mdns;
+extern bool bEnableMDNS;
 
 CFibaroPush m_fibaropush;
 CGooglePubSubPush m_googlepubsubpush;
@@ -932,7 +938,7 @@ bool MainWorker::AddHardwareFromParams(
 		pHardware = new CAnnaThermostat(ID, Address, Port, Username, Password);
 		break;
 	case HTYPE_Tado:
-		pHardware = new CTado(ID);
+		pHardware = new CTado(ID, Mode1);
 		break;
 	case HTYPE_Tesla:
 		pHardware = new CeVehicle(ID, CeVehicle::Tesla, Username, Password, Mode1, Mode2, Mode3, Extra);
@@ -1181,7 +1187,45 @@ bool MainWorker::Start()
 		LoadSharedUsers();
 	}
 
+	if (bEnableMDNS)
+	{
+		if (
+			m_webserver_settings.listening_port.empty()
+#ifdef WWW_ENABLE_SSL
+			&& m_secure_webserver_settings.listening_port.empty()
+#endif
+			)
+		{
+			_log.Log(LOG_STATUS, "Mainworker: mDNS enabled, but webserver ports are disabled. Not starting service!");
+		}
+		else
+		{
+			std::string sValue;
+			std::string szInstanceName = "Domoticz";
+			if (m_sql.GetPreferencesVar("Title", sValue))
+			{
+				szInstanceName = sValue;
+			}
+			stdlower(szInstanceName);
+
+			m_mdns.setServiceHostname(szInstanceName);
+			m_mdns.setServicePort(atoi(m_webserver_settings.listening_port.c_str()));
+#ifdef WWW_ENABLE_SSL
+			if (m_secure_webserver_settings.is_enabled())
+			{
+				m_mdns.setServicePort(atoi(m_secure_webserver_settings.listening_port.c_str()));
+			}
+#endif
+			m_mdns.addServiceTxtRecord("app", "Domoticz");
+			m_mdns.addServiceTxtRecord("version", szAppVersion);
+			m_mdns.addServiceTxtRecord("path", "/");
+			m_mdns.startService();
+		}
+	}
+
 	HandleHourPrice();
+
+	CKWHStats::InitGlobal();
 
 	m_thread = std::make_shared<std::thread>([this] { Do_Work(); });
 	SetThreadName(m_thread->native_handle(), "MainWorker");
@@ -1221,6 +1265,8 @@ bool MainWorker::Stop()
 #ifdef ENABLE_PYTHON
 		m_pluginsystem.StopPluginSystem();
 #endif
+		if (m_mdns.isServiceRunning())	// Stop mDNS service
+			m_mdns.stopService();
 
 		//    m_cameras.StopCameraGrabber();
 
@@ -1230,6 +1276,8 @@ bool MainWorker::Stop()
 		m_thread->join();
 		m_thread.reset();
 	}
+	CKWHStats::ExitGlobal();
+
 	return true;
 }
 
@@ -1694,9 +1742,12 @@ void MainWorker::Do_Work()
 
 		if (ltime.tm_min != _ScheduleLastMinute)
 		{
-			minute_counter++;
+			bool bDoCleanupShortlog = false;
 			if (difftime(atime, _ScheduleLastMinuteTime) > 30) //avoid RTC/NTP clock drifts
 			{
+#ifdef _DEBUG
+				CKWHStats::HandleKWHStatsHour();
+#endif
 				_ScheduleLastMinuteTime = atime;
 				_ScheduleLastMinute = ltime.tm_min;
 
@@ -1706,8 +1757,8 @@ void MainWorker::Do_Work()
 				if (ltime.tm_min % m_sql.m_ShortLogInterval == 0)
 				{
 					HandleHourPrice();
-					if (!bNoCleanupDev)
-						m_sql.ScheduleShortlog();
+					m_sql.ScheduleShortlog();
+					bDoCleanupShortlog = !bNoCleanupDev;
 				}
 				std::string szPwdResetFile = szStartupFolder + "resetpwd";
 				if (file_exist(szPwdResetFile.c_str()))
@@ -1726,6 +1777,7 @@ void MainWorker::Do_Work()
 				}
 			}
 			//Check for updates every 12 hours (every 720 seconds)
+			minute_counter++;
 			if (minute_counter % 720 == 0)
 			{
 				IsUpdateAvailable(true);
@@ -1740,6 +1792,8 @@ void MainWorker::Do_Work()
 
 					m_sql.CheckDeviceTimeout();
 					m_sql.CheckBatteryLow();
+
+					CKWHStats::HandleKWHStatsHour();
 
 					//check for daily schedule
 					if (ltime.tm_hour == 0)
@@ -1768,6 +1822,12 @@ void MainWorker::Do_Work()
 #endif
 					HandleAutomaticBackups();
 				}
+			}
+			if (bDoCleanupShortlog)
+			{
+				//Removing the line below could cause a very large database,
+				//and slow(large) data transfer (specially when working remote!!)
+				m_sql.CleanupShortLog();
 			}
 		}
 		if (heartbeat_counter++ > 12)
@@ -12984,6 +13044,8 @@ bool MainWorker::SetSetPointInt(const std::vector<std::string>& sd, const float 
 			|| (value_unit == "�F")
 			|| (value_unit == "C")
 			|| (value_unit == "F")
+			|| (value_unit.find_last_of("°F") != std::string::npos)
+			|| (value_unit.find_last_of("°C") != std::string::npos)
 			)
 		{
 			tmeter.value = (m_sql.m_tempsign[0] != 'F') ? TempValue : static_cast<float>(ConvertToCelsius(TempValue));

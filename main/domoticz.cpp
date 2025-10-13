@@ -32,6 +32,8 @@
 #include "appversion.h"
 #include "SignalHandler.h"
 
+#include "../mdns/mdns.hpp"
+
 #if defined WIN32
 	#include "../msbuild/WindowsHelper.h"
 	#include <Shlobj.h>
@@ -75,6 +77,7 @@ namespace
 #endif
 		"\t-webroot additional web root, useful with proxy servers (for example domoticz)\n"
 		"\t-nocache ask browser not to cache pages\n"
+		"\t-nomdns do not enable mDNS broadcast and listening\n"
 		"\t-startupdelay seconds (default=0)\n"
 		"\t-nowwwpwd (in case you forgot the web server username/password)\n"
 		"\t-wwwcompress mode (on = always compress [default], off = always decompress, static = no processing but try precompressed first)\n"
@@ -130,6 +133,7 @@ std::string dbasefile;
 std::string szCertFile = "./server_cert.pem";
 bool bDoCachePages = true;
 bool bNoCleanupDev = false;
+bool bEnableMDNS = true;
 
 std::string szAppVersion="???";
 int iAppRevision=0;
@@ -145,6 +149,7 @@ CLogger _log;
 http::server::CWebServerHelper m_webservers;
 CSQLHelper m_sql;
 CNotificationHelper m_notifications;
+domoticz_mdns::mDNS m_mdns;
 
 std::string logfile;
 std::string weblogfile;
@@ -167,7 +172,10 @@ bool g_bUseWatchdog = true;
 
 std::string daemonname = DAEMON_NAME;
 std::string pidfile = PID_FILE;
+std::string m_sz_std_out_err_log_file="";
 int pidFilehandle = 0;
+
+time_t m_LastHeartbeat = 0;
 
 #ifndef WIN32
 void daemonShutdown()
@@ -275,7 +283,10 @@ void daemonize(const char *rundir, const char *pidfile)
 	/* Route I/O connections */
 
 	/* Open STDIN */
-	i = open("/dev/null", O_RDWR);
+	if (m_sz_std_out_err_log_file.empty())	
+		i = open("/dev/null", O_RDWR);
+	else
+		i = open(m_sz_std_out_err_log_file.c_str(), O_RDWR | O_APPEND | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
 	/* STDOUT */
 	int dret = dup(i);
@@ -457,6 +468,27 @@ void GetAppVersion()
 	szAppDate = szTmp;
 }
 
+bool AreWeRunningInDocker()
+{
+	std::ifstream dockerenv("/.dockerenv");
+	if (dockerenv.good())
+		return true;
+
+	std::ifstream cgroup("/proc/self/cgroup");
+	std::string line;
+	while (std::getline(cgroup, line))
+	{
+		if (
+			line.find("docker") != std::string::npos
+			|| line.find("containerd") != std::string::npos
+			)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 bool GetConfigBool(std::string szValue)
 {
 	stdlower(szValue);
@@ -604,6 +636,9 @@ bool ParseConfigFile(const std::string &szConfigFile)
 		else if (szFlag == "daemon_name") {
 			daemonname = sLine;
 		}
+		else if (szFlag == "std_out_err_log_file") {	
+			m_sz_std_out_err_log_file = sLine;
+		}
 		else if (szFlag == "daemon") {
 			g_bRunAsDaemon = GetConfigBool(sLine);
 		}
@@ -624,8 +659,6 @@ void DisplayAppVersion()
 	_log.Log(LOG_STATUS, "Domoticz V%s (c)2012-%d GizMoCuz", szAppVersion.c_str(), ActYear);
 	_log.Log(LOG_STATUS, "Build Hash: %s, Date: %s", szAppHash.c_str(), szAppDate.c_str());
 }
-
-time_t m_LastHeartbeat = 0;
 
 #if defined WIN32
 int WINAPI WinMain(_In_ HINSTANCE hInstance,_In_opt_ HINSTANCE hPrevInstance,_In_ LPSTR lpCmdLine,_In_ int nShowCmd)
@@ -756,6 +789,15 @@ int main(int argc, char**argv)
 
 	/* call srand once for the entire app */
 	std::srand((unsigned int)std::time(nullptr));
+
+#ifdef DISABLE_UPDATER
+	g_bUseUpdater = false;
+#endif
+
+	if (AreWeRunningInDocker())
+	{
+		g_bUseUpdater = false;
+	}
 
 	GetAppVersion();
 	DisplayAppVersion();
@@ -1043,11 +1085,15 @@ int main(int argc, char**argv)
 	{
 		bDoCachePages = false;
 	}
-
 	if (cmdLine.HasSwitch("-nodevcleanup"))
 	{
 		bNoCleanupDev = true;
 	}
+	if (cmdLine.HasSwitch("-nomdns"))
+	{
+		bEnableMDNS = false;
+	}
+
 #if defined WIN32
 	if (!bUseConfigFile) {
 		if (cmdLine.HasSwitch("-nobrowser"))
@@ -1076,6 +1122,10 @@ int main(int argc, char**argv)
 
 #ifndef WIN32
 	if (!bUseConfigFile) {
+		if (cmdLine.HasSwitch("-std_out_err_log_file"))		
+		{
+			m_sz_std_out_err_log_file = cmdLine.GetSafeArgument("-std_out_err_log_file", 0, "");
+		}
 		if (cmdLine.HasSwitch("-daemon"))
 		{
 			g_bRunAsDaemon = true;

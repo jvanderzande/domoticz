@@ -106,6 +106,7 @@ private:
 	void InvalidateOAuth2RefreshToken(const std::string &refreshtoken);
 	void PresentOauth2LoginDialog(reply &rep, const std::string &sApp, const std::string &sError);
 	bool VerifySHA1TOTP(const std::string &code, const std::string &key);
+	bool ValidRedirectUri(const std::string &redirect_uri);
 
 	//Commands
 	void Cmd_GetTimerTypes(WebEmSession & session, const request& req, Json::Value &root);
@@ -308,6 +309,9 @@ private:
 	void Cmd_GetDynamicPriceDevices(WebEmSession& session, const request& req, Json::Value& root);
 	void Cmd_GetEnergyDashboardDevices(WebEmSession& session, const request& req, Json::Value& root);
 
+	void Cmd_GetkWhStats(WebEmSession& session, const request& req, Json::Value& root);
+	void Cmd_ResetkWhStats(WebEmSession& session, const request& req, Json::Value& root);
+
 	// Plugin functions
 	void Cmd_PluginCommand(WebEmSession & session, const request& req, Json::Value &root);
 	void PluginList(Json::Value &root);
@@ -372,6 +376,7 @@ private:
 	//MQTT-AD
 	void Cmd_MQTTAD_GetConfig(WebEmSession& session, const request& req, Json::Value& root);
 	void Cmd_MQTTAD_UpdateNumber(WebEmSession& session, const request& req, Json::Value& root);
+	void Cmd_MQTTAD_PublishPayload(WebEmSession& session, const request& req, Json::Value& root);
 
 #ifdef WITH_OPENZWAVE
 	//ZWave

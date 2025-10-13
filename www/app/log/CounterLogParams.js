@@ -344,6 +344,6 @@ define(['app', 'log/Chart'], function (app) {
 				};
 				return months[month];
 			}
-        }
+        }		
     });
 });

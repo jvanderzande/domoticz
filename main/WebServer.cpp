@@ -136,8 +136,23 @@ namespace http
 
 			if (!settings.vhostname.empty())
 				sRealm += settings.vhostname;
+			else if (settings.listening_address != "::")
+				sRealm += settings.listening_address;
 			else
-				sRealm += (settings.listening_address == "::") ? "domoticz.local" : settings.listening_address;
+			{
+				std::string sValue;
+				std::string szInstanceName = "domoticz.local";
+				if (m_sql.GetPreferencesVar("Title", sValue))
+				{
+					if (!sValue.empty())
+					{
+						stdlower(sValue);
+						szInstanceName = sValue + ".local";
+					}
+				}
+
+				sRealm += szInstanceName;
+			}
 			if (settings.listening_port != "80" || settings.listening_port != "443")
 				sRealm += ":" + settings.listening_port;
 			sRealm += "/";
@@ -536,6 +551,7 @@ namespace http
 			//MQTT-AD
 			RegisterCommandCode("mqttadgetconfig", [this](auto&& session, auto&& req, auto&& root) { Cmd_MQTTAD_GetConfig(session, req, root); });
 			RegisterCommandCode("mqttupdatenumber", [this](auto&& session, auto&& req, auto&& root) { Cmd_MQTTAD_UpdateNumber(session, req, root); });
+			RegisterCommandCode("mqttpublishpayload", [this](auto&& session, auto&& req, auto&& root) { Cmd_MQTTAD_PublishPayload(session, req, root); });
 
 #ifdef WITH_OPENZWAVE
 			// ZWave
@@ -613,7 +629,10 @@ namespace http
 
 			//EnergyDashboard
 			RegisterCommandCode("getenergydashboarddevices", [this](auto&& session, auto&& req, auto&& root) { Cmd_GetEnergyDashboardDevices(session, req, root); });
-			
+
+			//kWh stats
+			RegisterCommandCode("getkwhstats", [this](auto&& session, auto&& req, auto&& root) { Cmd_GetkWhStats(session, req, root); });
+			RegisterCommandCode("resetkwhstats", [this](auto&& session, auto&& req, auto&& root) { Cmd_ResetkWhStats(session, req, root); });
 
 			//Whitelist
 			m_pWebEm->RegisterWhitelistURLString("/images/floorplans/plan");
@@ -1246,7 +1265,7 @@ namespace http
 					{
 						sprintf(szOrderBy, "A.[Order],A.%s ASC", order.c_str());
 					}
-					//_log.Log(LOG_STATUS, "Getting all devices: order by %s ", szOrderBy);
+					//_log.Log(LOG_STATUS, "Getting all devices: order by %s", szOrderBy);
 					if (!hardwareid.empty())
 					{
 						szQuery = ("SELECT A.ID, A.DeviceID, A.Unit, A.Name, A.Used,A.Type, A.SubType,"
@@ -3902,7 +3921,7 @@ namespace http
 			}
 			else
 			{
-				queryString.append("  sum(Value) as Sum");
+				queryString.append("  sum(" + value("") + ") as Sum");
 			}
 
 			if (sgroupby == "quarter")
@@ -4131,7 +4150,7 @@ namespace http
 						std::string TableField = db.first;
 						std::string IconFile = db.second;
 
-						if (!file_exist(IconFile.c_str()))
+						if (!file_exist_not_empty(IconFile.c_str()))
 						{
 							// Does not exists, extract it from the database and add it
 							std::vector<std::vector<std::string>> result2;
@@ -4142,6 +4161,7 @@ namespace http
 								file.open(IconFile.c_str(), std::ios::out | std::ios::binary);
 								if (!file.is_open())
 								{
+									_log.Log(LOG_ERROR, "Error writing custom image to disk: %s", IconFile.c_str());
 									bError = true;
 									continue;
 								}
@@ -4154,7 +4174,7 @@ namespace http
 					if (bError)
 					{
 						cImage.Title += " (INVALID!!)";
-						cImage.Description = "probably invalid characters in Title/Descriptionn!";
+						cImage.Description = "probably invalid characters in Title/Description!";
 					}
 					m_custom_light_icons.push_back(cImage);
 					m_custom_light_icons_lookup[cImage.idx] = (int)m_custom_light_icons.size() - 1;
@@ -4174,7 +4194,7 @@ namespace http
 				std::string cparam = request::findValue(&req, "param");
 				if (!cparam.empty())
 				{
-					_log.Debug(DEBUG_WEBSERVER, "CWebServer::GetJSonPage :%s :%s ", cparam.c_str(), req.uri.c_str());
+					_log.Debug(DEBUG_WEBSERVER, "CWebServer::GetJSonPage: %s : %s", cparam.c_str(), req.uri.c_str());
 
 					auto pf = m_webcommands.find(cparam);
 					if (pf != m_webcommands.end())
@@ -4193,7 +4213,7 @@ namespace http
 			} //(rtype=="command")
 			else
 			{
-				_log.Debug(DEBUG_WEBSERVER, "CWebServer::GetJSonPage(rtype) :%s :%s ", rtype.c_str(), req.uri.c_str());
+				_log.Debug(DEBUG_WEBSERVER, "CWebServer::GetJSonPage(rtype) :%s :%s", rtype.c_str(), req.uri.c_str());
 				rep.status = http::server::reply::not_found;
 				return;
 			}

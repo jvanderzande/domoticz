@@ -41,7 +41,7 @@
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
-#define DB_VERSION 169
+#define DB_VERSION 170
 
 #define DEFAULT_ADMINUSER "admin"
 #define DEFAULT_ADMINPWD "domoticz"
@@ -225,6 +225,13 @@ constexpr auto sqlCreateMultiMeter_Calendar =
 "[Counter4] BIGINT DEFAULT 0, "
 "[Price] FLOAT DEFAULT 0, "
 "[Date] DATETIME DEFAULT (datetime('now','localtime')));";
+
+constexpr auto sqlCreateKWHStats =
+"CREATE TABLE IF NOT EXISTS [KWHStats] ("
+"[ID] INTEGER PRIMARY KEY, "
+"[DeviceRowID] BIGINT(10) NOT NULL, "
+"[Value] TEXT, "
+"[LastUpdate] DATETIME DEFAULT(datetime('now', 'localtime')));";
 
 constexpr auto sqlCreateNotifications =
 "CREATE TABLE IF NOT EXISTS [Notifications] ("
@@ -705,6 +712,7 @@ bool CSQLHelper::OpenDatabase()
 	query(sqlCreateMeter_Calendar);
 	query(sqlCreateMultiMeter);
 	query(sqlCreateMultiMeter_Calendar);
+	query(sqlCreateKWHStats);
 	query(sqlCreateNotifications);
 	query(sqlCreateHardware);
 	query(sqlCreateUsers);
@@ -3195,7 +3203,11 @@ bool CSQLHelper::OpenDatabase()
 				}
 			}
 		}
-
+		if (dbversion < 170)
+		{
+			// Update Philips Hue to use HTTPS
+			m_sql.safe_query("UPDATE HARDWARE SET Port=443, SerialPort=433 WHERE ([Type]==%d) AND Port=80", HTYPE_Philips_Hue);
+		}
 	}
 	else if (bNewInstall)
 	{
@@ -4174,7 +4186,7 @@ void CSQLHelper::Do_Work()
 
 		for (const auto &itt : _items2do)
 		{
-			_log.Debug(DEBUG_NORM, "SQLH: Do Task ItemType:%d Cmd:%s Value:%s ", itt._ItemType, itt._command.c_str(), itt._sValue.c_str());
+			_log.Debug(DEBUG_NORM, "SQLH: Do Task ItemType: %d Cmd: %s Value: %s", itt._ItemType, itt._command.c_str(), itt._sValue.c_str());
 
 			if (itt._ItemType == TITEM_SWITCHCMD)
 			{
@@ -6072,9 +6084,6 @@ void CSQLHelper::ScheduleShortlog()
 		UpdateMultiMeter();
 		UpdatePercentageLog();
 		UpdateFanLog();
-		//Removing the line below could cause a very large database,
-		//and slow(large) data transfer (specially when working remote!!)
-		CleanupShortLog();
 	}
 	catch (boost::exception& e)
 	{
@@ -8283,6 +8292,7 @@ void CSQLHelper::DeleteDevices(const std::string& idx)
 			safe_exec_no_return("DELETE FROM Meter_Calendar WHERE (DeviceRowID == '%q')", str.c_str());
 			safe_exec_no_return("DELETE FROM MultiMeter WHERE (DeviceRowID == '%q')", str.c_str());
 			safe_exec_no_return("DELETE FROM MultiMeter_Calendar WHERE (DeviceRowID == '%q')", str.c_str());
+			safe_exec_no_return("DELETE FROM KWHStats WHERE (DeviceRowID == '%q')", str.c_str());
 			safe_exec_no_return("DELETE FROM Percentage WHERE (DeviceRowID == '%q')", str.c_str());
 			safe_exec_no_return("DELETE FROM Percentage_Calendar WHERE (DeviceRowID == '%q')", str.c_str());
 			safe_exec_no_return("DELETE FROM Fan WHERE (DeviceRowID == '%q')", str.c_str());
@@ -8523,7 +8533,7 @@ void CSQLHelper::DeleteDateRange(const char *ID, const std::string &fromDate, co
 	for (const auto &historyTable : historyTables)
 	{
 		safe_query("DELETE FROM %q WHERE (DeviceRowID=='%q') AND (Date>='%q') AND (Date<='%q')", historyTable.c_str(), ID, fromDate.c_str(), toDate.c_str() );
-		_log.Debug(DEBUG_NORM, "CSQLHelper::DeleteDateRange; delete from %s with idx: %s and Date >= %s and date <= %s " , historyTable.c_str(), std::string(ID).c_str(), fromDate.c_str(), toDate.c_str() );
+		_log.Debug(DEBUG_NORM, "CSQLHelper::DeleteDateRange; delete from %s with idx: %s and Date >= %s and date <= %s" , historyTable.c_str(), std::string(ID).c_str(), fromDate.c_str(), toDate.c_str() );
 	}
 }
 
@@ -10277,7 +10287,7 @@ void CSQLHelper::RefreshActualPrices()
 
 bool CSQLHelper::TransferDevice(const std::string& sOldIdx, const std::string& sNewIdx)
 {
-	auto result = m_sql.safe_query("SELECT HardwareID, OrgHardwareID, DeviceID, Unit, Type, SubType FROM DeviceStatus WHERE (ID == '%q')", sNewIdx.c_str());
+	auto result = m_sql.safe_query("SELECT HardwareID, OrgHardwareID, DeviceID, Unit, Type, SubType, Options FROM DeviceStatus WHERE (ID == '%q')", sNewIdx.c_str());
 	if (result.empty())
 		return false;
 
@@ -10287,6 +10297,7 @@ bool CSQLHelper::TransferDevice(const std::string& sOldIdx, const std::string& s
 	int newUnit = std::stoi(result[0].at(3));
 	int devType = std::stoi(result[0].at(4));
 	int subType = std::stoi(result[0].at(5));
+	std::string sOptions = result[0].at(6);
 
 	//get last update date from old device
 	result = m_sql.safe_query("SELECT LastUpdate FROM DeviceStatus WHERE (ID == '%q')", sOldIdx.c_str());
@@ -10297,8 +10308,8 @@ bool CSQLHelper::TransferDevice(const std::string& sOldIdx, const std::string& s
 
 	_log.Log(LOG_STATUS, "Replace old device %s to new device %s from %s.", sOldIdx.c_str(), sNewIdx.c_str(), szLastOldDate.c_str());
 
-	m_sql.safe_query("UPDATE DeviceStatus SET HardwareID = %d, OrgHardwareID = %d, DeviceID = '%q', Unit = %d, Type = %d, SubType = %d WHERE ID == '%q'",
-		newHardwareID, newOrgHardwareID, newDeviceID.c_str(), newUnit, devType, subType, sOldIdx.c_str());
+	m_sql.safe_query("UPDATE DeviceStatus SET HardwareID=%d, OrgHardwareID=%d, DeviceID='%q', Unit=%d, Type=%d, SubType=%d, Options='%q' WHERE ID == '%q'",
+		newHardwareID, newOrgHardwareID, newDeviceID.c_str(), newUnit, devType, subType, sOptions.c_str(), sOldIdx.c_str());
 
 	//new device could already have some logging, so let's keep this data
 	//Rain
