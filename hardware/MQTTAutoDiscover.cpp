@@ -1399,6 +1399,10 @@ void MQTTAutoDiscover::on_auto_discovery_message(const struct mosquitto_message*
 			pSensor->temperature_low_command_topic = root["temperature_low_command_topic"].asString();
 		if (!root["temp_lo_cmd_t"].empty())
 			pSensor->temperature_low_command_topic = root["temp_lo_cmd_t"].asString();
+		if (!root["temperature_low_command_template"].empty())
+			pSensor->temperature_low_command_template = root["temperature_low_command_template"].asString();
+		if (!root["temp_lo_cmd_tpl"].empty())
+			pSensor->temperature_low_command_template = root["temp_lo_cmd_tpl"].asString();
 		if (!root["temperature_low_state_template"].empty())
 			pSensor->temperature_low_state_template = root["temperature_low_state_template"].asString();
 		if (!root["temp_lo_stat_tpl"].empty())
