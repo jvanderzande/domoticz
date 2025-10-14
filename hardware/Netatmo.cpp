@@ -2911,7 +2911,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 					}
 
 					// create / update the switch for setting room mode
-					// Possible; schedule / max / home
+					// Possible; home / manual / max
 					Debug(DEBUG_HARDWARE, "Room Setpoint mode %s", setpoint_mode.c_str());
 					if (setpoint_mode == "manual")
 					{
@@ -3627,6 +3627,13 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 									m_sql.UpdateDeviceValue("CustomImage", 19, std::to_string(uId));           //19 Sun
 								}
 							}
+							if (setModeSwitch)
+							{
+								//Max mode can only be applied on thermostat room
+								SendSelectorSwitch(Room_int, 16, room_mode_str, moduleName + " - Room", 15, true, "Off|Home|Manual|Max", "", true, m_Name);   // No RF-level - Battery level visible
+							}
+							else
+								Log(LOG_ERROR, "NetatmoThermostat: Error Room Thermostat not available!");
 						}
 
 						//Thermostat schedule switch (actively changing thermostat schedule)
@@ -3670,14 +3677,17 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 
 						m_thermostatModuleID[crcId] = module_id;                // mac-adres
 						m_DeviceHomeID[roomNetatmoID] = home_id;              // Home_ID
-						//Max mode can only be applied on thermostat room
-						SendSelectorSwitch(Room_int, 16, room_mode_str, moduleName + " - Room", 15, true, "Off|Home|Manual|Max", "", true, m_Name);   // No RF-level - Battery level visible
 
 						if (type == "NRV")
 						{
 							//Debug(DEBUG_HARDWARE, "NRV");
-							// Max mode can only be applied on thermostat room
-							SendSelectorSwitch(Room_int, 16, room_mode_str, moduleName + " - Room", 15, true, "Off|Home|Manual", "", true, m_Name);   // No RF-level - Battery level visible
+							if (setModeSwitch)
+							{
+								//Max mode can only be applied on thermostat room
+								SendSelectorSwitch(Room_int, 16, room_mode_str, moduleName + " - Room", 15, true, "Off|Home|Manual", "", true, m_Name);   // No RF-level - Battery level visible
+							}
+							else
+								Log(LOG_ERROR, "NetatmoThermostat: Error Room Valve not available!");
 
 							int ChildID = NETATMO_PRESET_UNIT;
 							auto result = m_sql.safe_query("SELECT ID, nValue, sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%08X') AND (Unit==%d)", m_HwdID, crcId, ChildID);
