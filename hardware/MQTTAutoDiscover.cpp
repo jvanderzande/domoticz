@@ -47,6 +47,11 @@ enum SwitchCommands {
 #define CLIMATE_SWING_MODE_UNIT 5
 #define CLIMATE_ACTION_UNIT 6
 
+#define CLIMATE_TEMP_SETPOINT_UNIT 1
+#define CLIMATE_HIGH_TEMP_SETPOINT_UNIT 2
+#define CLIMATE_LOW_TEMP_SETPOINT_UNIT 3
+
+
 MQTTAutoDiscover::MQTTAutoDiscover(const int ID, const std::string& Name, const std::string& IPAddress, const unsigned short usIPPort, const std::string& Username, const std::string& Password,
 	const std::string& CAfilenameExtra, const int TLS_Version)
 	: MQTT(ID, IPAddress, usIPPort, Username, Password, CAfilenameExtra, TLS_Version, (int)MQTTAutoDiscover::PT_none, std::string("Domoticz-MQTT-AutoDiscover") + GenerateUUID() + std::to_string(ID), true)
@@ -1373,6 +1378,32 @@ void MQTTAutoDiscover::on_auto_discovery_message(const struct mosquitto_message*
 			pSensor->temperature_state_template = root["temperature_state_template"].asString();
 		if (!root["temp_stat_tpl"].empty())
 			pSensor->temperature_state_template = root["temp_stat_tpl"].asString();
+
+		if (!root["temperature_high_command_topic"].empty())
+			pSensor->temperature_high_command_topic = root["temperature_high_command_topic"].asString();
+		if (!root["temp_hi_cmd_t"].empty())
+			pSensor->temperature_high_command_topic = root["temp_hi_cmd_t"].asString();
+		if (!root["temperature_high_state_template"].empty())
+			pSensor->temperature_high_state_template = root["temperature_high_state_template"].asString();
+		if (!root["temp_hi_stat_tpl"].empty())
+			pSensor->temperature_high_state_template = root["temp_hi_stat_tpl"].asString();
+		if (!root["temperature_high_state_topic"].empty())
+			pSensor->temperature_high_state_topic = root["temperature_high_state_topic"].asString();
+		if (!root["temp_hi_stat_t"].empty())
+			pSensor->temperature_high_state_topic = root["temp_hi_stat_t"].asString();
+		if (!root["temperature_low_command_topic"].empty())
+			pSensor->temperature_low_command_topic = root["temperature_low_command_topic"].asString();
+		if (!root["temp_lo_cmd_t"].empty())
+			pSensor->temperature_low_command_topic = root["temp_lo_cmd_t"].asString();
+		if (!root["temperature_low_state_template"].empty())
+			pSensor->temperature_low_state_template = root["temperature_low_state_template"].asString();
+		if (!root["temp_lo_stat_tpl"].empty())
+			pSensor->temperature_low_state_template = root["temp_lo_stat_tpl"].asString();
+		if (!root["temperature_low_state_topic"].empty())
+			pSensor->temperature_low_state_topic = root["temperature_low_state_topic"].asString();
+		if (!root["temp_lo_stat_t"].empty())
+			pSensor->temperature_low_state_topic = root["temp_lo_stat_t"].asString();
+
 		if (!root["temperature_unit"].empty())
 			pSensor->temperature_unit = root["temperature_unit"].asString();
 		if (!root["temp_unit"].empty())
@@ -1527,6 +1558,8 @@ void MQTTAutoDiscover::on_auto_discovery_message(const struct mosquitto_message*
 		CleanValueTemplate(pSensor->swing_state_template);
 		CleanValueTemplate(pSensor->swing_command_template);
 		CleanValueTemplate(pSensor->temperature_state_template);
+		CleanValueTemplate(pSensor->temperature_high_state_template);
+		CleanValueTemplate(pSensor->temperature_low_state_template);
 		CleanValueTemplate(pSensor->current_temperature_template);
 		CleanValueTemplate(pSensor->preset_mode_value_template);
 		CleanValueTemplate(pSensor->preset_mode_command_template);
@@ -1536,6 +1569,9 @@ void MQTTAutoDiscover::on_auto_discovery_message(const struct mosquitto_message*
 		FixCommandTopic(pSensor->fan_command_topic, pSensor->fan_command_template);
 		FixCommandTopic(pSensor->swing_command_topic, pSensor->swing_command_template);
 		FixCommandTopic(pSensor->temperature_command_topic, pSensor->temperature_command_template);
+		FixCommandTopic(pSensor->temperature_high_command_topic, pSensor->temperature_high_command_template);
+		FixCommandTopic(pSensor->temperature_low_command_topic, pSensor->temperature_low_command_template);
+
 		FixCommandTopic(pSensor->preset_mode_command_topic, pSensor->preset_mode_command_template);
 		FixCommandTopic(pSensor->action_topic, pSensor->action_template);
 
@@ -1600,7 +1636,11 @@ void MQTTAutoDiscover::on_auto_discovery_message(const struct mosquitto_message*
 		}
 		else if (pSensor->component_type == "climate")
 		{
-			if (pSensor->temperature_command_topic.empty())
+			if (
+				(pSensor->temperature_command_topic.empty())
+				&& (pSensor->temperature_high_command_topic.empty())
+				&& (pSensor->temperature_low_command_topic.empty())
+				)
 			{
 				Log(LOG_ERROR, "Missing temperature_command_topic!");
 				return;
@@ -1679,6 +1719,8 @@ void MQTTAutoDiscover::on_auto_discovery_message(const struct mosquitto_message*
 			SubscribeTopic(pSensor->mode_state_topic, pSensor->qos);
 			SubscribeTopic(pSensor->current_temperature_topic, pSensor->qos);
 			SubscribeTopic(pSensor->temperature_state_topic, pSensor->qos);
+			SubscribeTopic(pSensor->temperature_high_state_topic, pSensor->qos);
+			SubscribeTopic(pSensor->temperature_low_state_topic, pSensor->qos);
 			SubscribeTopic(pSensor->rgb_state_topic, pSensor->qos);
 			SubscribeTopic(pSensor->percentage_state_topic, pSensor->qos);
 			SubscribeTopic(pSensor->action_topic, pSensor->qos);
@@ -1734,6 +1776,8 @@ void MQTTAutoDiscover::handle_auto_discovery_sensor_message(const struct mosquit
 			|| (pSensor->rgb_state_topic == topic)
 			|| (pSensor->mode_state_topic == topic)
 			|| (pSensor->temperature_state_topic == topic)
+			|| (pSensor->temperature_high_state_topic == topic)
+			|| (pSensor->temperature_low_state_topic == topic)
 			|| (pSensor->current_temperature_topic == topic)
 			|| (pSensor->percentage_state_topic == topic)
 			|| (pSensor->preset_mode_state_topic == topic)
@@ -3220,6 +3264,120 @@ void MQTTAutoDiscover::handle_auto_discovery_select(_tMQTTASensor* pSensor, cons
 	}
 }
 
+bool MQTTAutoDiscover::InsertUpdateSetpoint(
+	_tMQTTASensor* pSensor,
+	const std::string& command_topic,
+	const std::string& state_topic,
+	const std::string& state_template,
+	const int Unit,
+	const struct mosquitto_message* message
+)
+{
+	if (command_topic.empty())
+		return false;
+
+	std::string topic = message->topic;
+	std::string qMessage = std::string((char*)message->payload, (char*)message->payload + message->payloadlen);
+
+	if (qMessage.empty())
+		return false;
+
+	bool bIsJSON = false;
+	Json::Value root;
+	bool ret = ParseJSon(qMessage, root);
+	if (ret)
+	{
+		bIsJSON = root.isObject();
+	}
+
+	// Create/update Selector device for config and update payloads 
+
+	bool isNull = false;
+	bool bValid = true;
+
+	double temp_setpoint = 18;
+	bool bHaveReceiveValue = false;
+	if (state_topic == topic)
+	{
+		if (bIsJSON)
+		{
+			//Current Setpoint
+			if (!state_template.empty())
+			{
+				std::string tstring = GetValueFromTemplate(root, state_template, isNull);
+				if (tstring.empty())
+				{
+					//No temperature_state provided
+					//Log(LOG_ERROR, "Climate device unhandled temperature_state_template (%s)", pSensor->unique_id.c_str());
+					bValid = false;
+				}
+				else
+					temp_setpoint = static_cast<double>(atof(tstring.c_str()));
+			}
+		}
+		else
+			temp_setpoint = static_cast<double>(atof(qMessage.c_str()));
+		bHaveReceiveValue = true;
+	}
+	if (bValid)
+	{
+		if (pSensor->temperature_unit == "F")
+		{
+			// Convert back to Celsius
+			temp_setpoint = ConvertToCelsius(temp_setpoint);
+		}
+
+		pSensor->nValue = 0;
+		pSensor->sValue = std_format("%.2f", temp_setpoint);
+		pSensor->devType = pTypeSetpoint;
+		pSensor->subType = sTypeSetpoint;
+		std::vector<std::vector<std::string>> result;
+		result = m_sql.safe_query("SELECT ID, Name, sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d) AND (Type==%d) AND (Subtype==%d)", m_HwdID,
+			pSensor->unique_id.c_str(), Unit, pSensor->devType, pSensor->subType);
+		if (result.empty())
+		{
+			// Insert
+			if (!m_sql.m_bAcceptNewHardware)
+			{
+				Log(LOG_NORM, "Accept new hardware disabled. Ignoring new sensor %s", pSensor->name.c_str());
+				return false;
+			}
+			int iUsed = (pSensor->bEnabled_by_default) ? 1 : 0;
+			m_sql.safe_query("INSERT INTO DeviceStatus (HardwareID, OrgHardwareID, DeviceID, Unit, Type, SubType, SignalLevel, BatteryLevel, Name, Used, nValue, sValue) "
+				"VALUES (%d, %d, '%q', %d, %d, %d, %d, %d, '%q', %d, %d, '%q')",
+				m_HwdID, 0, pSensor->unique_id.c_str(), Unit, pSensor->devType, pSensor->subType, pSensor->SignalLevel, pSensor->BatteryLevel, pSensor->name.c_str(), iUsed,
+				pSensor->nValue, pSensor->sValue.c_str());
+			result = m_sql.safe_query("SELECT ID FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d) AND (Type==%d) AND (Subtype==%d)", m_HwdID,
+				pSensor->unique_id.c_str(), Unit, pSensor->devType, pSensor->subType);
+			//Set options
+			std::string new_options = std_format("ValueStep:%g;ValueMin:%g;ValueMax:%g;ValueUnit:%s;", pSensor->temp_step, pSensor->temp_min, pSensor->temp_max, pSensor->temperature_unit.c_str());
+			uint64_t ullidx = std::stoull(result[0][0]);
+			m_sql.SetDeviceOptions(ullidx, m_sql.BuildDeviceOptions(new_options, false));
+		}
+		else
+		{
+			// Update
+			if (bHaveReceiveValue)
+			{
+				std::string sID = result[0][0];
+				std::string sName = result[0][1];
+				std::string old_value = result[0][2];
+				//check if different
+				if (old_value != pSensor->sValue)
+				{
+					UpdateValueInt(m_HwdID, pSensor->unique_id.c_str(), Unit, pSensor->devType, pSensor->subType, pSensor->SignalLevel, pSensor->BatteryLevel, pSensor->nValue,
+						pSensor->sValue.c_str(),
+						sName);
+				}
+				else
+					m_sql.UpdateLastUpdate(sID);
+			}
+		}
+	}
+	return true;
+}
+
+
 void MQTTAutoDiscover::handle_auto_discovery_climate(_tMQTTASensor* pSensor, const struct mosquitto_message* message)
 {
 	std::string topic = message->topic;
@@ -3999,89 +4157,31 @@ void MQTTAutoDiscover::handle_auto_discovery_climate(_tMQTTASensor* pSensor, con
 	}
 
 	// Create/update SetPoint Thermostat for config and update payloads 
-	bValid = true;
-	if (!pSensor->temperature_command_topic.empty())
-	{
-		double temp_setpoint = 18;
-		bool bHaveReceiveValue = false;
-		if (pSensor->temperature_state_topic == topic)
-		{
-			if (bIsJSON)
-			{
-				//Current Setpoint
-				if (!pSensor->temperature_state_template.empty())
-				{
-					std::string tstring = GetValueFromTemplate(root, pSensor->temperature_state_template, isNull);
-					if (tstring.empty())
-					{
-						//No temperature_state provided
-						//Log(LOG_ERROR, "Climate device unhandled temperature_state_template (%s)", pSensor->unique_id.c_str());
-						bValid = false;
-					}
-					else
-						temp_setpoint = static_cast<double>(atof(tstring.c_str()));
-				}
-			}
-			else
-				temp_setpoint = static_cast<double>(atof(qMessage.c_str()));
-			bHaveReceiveValue = true;
-		}
-		if (bValid)
-		{
-			if (pSensor->temperature_unit == "F")
-			{
-				// Convert back to Celsius
-				temp_setpoint = ConvertToCelsius(temp_setpoint);
-			}
+	bValid = InsertUpdateSetpoint(
+		pSensor,
+		pSensor->temperature_command_topic,
+		pSensor->temperature_state_topic,
+		pSensor->temperature_state_template,
+		CLIMATE_TEMP_SETPOINT_UNIT,
+		message);
 
-			pSensor->nValue = 0;
-			pSensor->sValue = std_format("%.2f", temp_setpoint);
-			pSensor->devType = pTypeSetpoint;
-			pSensor->subType = sTypeSetpoint;
-			std::vector<std::vector<std::string>> result;
-			result = m_sql.safe_query("SELECT ID, Name, sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d) AND (Type==%d) AND (Subtype==%d)", m_HwdID,
-				pSensor->unique_id.c_str(), 1, pSensor->devType, pSensor->subType);
-			if (result.empty())
-			{
-				// Insert
-				if (!m_sql.m_bAcceptNewHardware)
-				{
-					Log(LOG_NORM, "Accept new hardware disabled. Ignoring new sensor %s", pSensor->name.c_str());
-					return;
-				}
-				int iUsed = (pSensor->bEnabled_by_default) ? 1 : 0;
-				m_sql.safe_query("INSERT INTO DeviceStatus (HardwareID, OrgHardwareID, DeviceID, Unit, Type, SubType, SignalLevel, BatteryLevel, Name, Used, nValue, sValue) "
-					"VALUES (%d, %d, '%q', 1, %d, %d, %d, %d, '%q', %d, %d, '%q')",
-					m_HwdID, 0, pSensor->unique_id.c_str(), pSensor->devType, pSensor->subType, pSensor->SignalLevel, pSensor->BatteryLevel, pSensor->name.c_str(), iUsed,
-					pSensor->nValue, pSensor->sValue.c_str());
-				result = m_sql.safe_query("SELECT ID FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d) AND (Type==%d) AND (Subtype==%d)", m_HwdID,
-					pSensor->unique_id.c_str(), 1, pSensor->devType, pSensor->subType);
-				//Set options
-				std::string new_options = std_format("ValueStep:%g;ValueMin:%g;ValueMax:%g;ValueUnit:%s;", pSensor->temp_step, pSensor->temp_min, pSensor->temp_max, pSensor->temperature_unit.c_str());
-				uint64_t ullidx = std::stoull(result[0][0]);
-				m_sql.SetDeviceOptions(ullidx, m_sql.BuildDeviceOptions(new_options, false));
-			}
-			else
-			{
-				// Update
-				if (bHaveReceiveValue)
-				{
-					std::string sID = result[0][0];
-					std::string sName = result[0][1];
-					std::string old_value = result[0][2];
-					//check if different
-					if (old_value != pSensor->sValue)
-					{
-						UpdateValueInt(m_HwdID, pSensor->unique_id.c_str(), 1, pSensor->devType, pSensor->subType, pSensor->SignalLevel, pSensor->BatteryLevel, pSensor->nValue,
-							pSensor->sValue.c_str(),
-							sName);
-					}
-					else
-						m_sql.UpdateLastUpdate(sID);
-				}
-			}
-		}
-	}
+	// Create/update SetPoint High Thermostat for config and update payloads 
+	bValid = InsertUpdateSetpoint(
+		pSensor,
+		pSensor->temperature_high_command_topic,
+		pSensor->temperature_high_state_topic,
+		pSensor->temperature_high_state_template,
+		CLIMATE_HIGH_TEMP_SETPOINT_UNIT,
+		message);
+
+	// Create/update SetPoint Low Thermostat for config and update payloads 
+	bValid = InsertUpdateSetpoint(
+		pSensor,
+		pSensor->temperature_low_command_topic,
+		pSensor->temperature_low_state_topic,
+		pSensor->temperature_low_state_template,
+		CLIMATE_LOW_TEMP_SETPOINT_UNIT,
+		message);
 
 	// Create/update Temp device for config and update payloads
 	bValid = true;
@@ -4134,9 +4234,12 @@ void MQTTAutoDiscover::handle_auto_discovery_climate(_tMQTTASensor* pSensor, con
 			pSensor->sValue = std_format("%.1f", temp_current);
 
 			pSensor->subType = sTypeSetpoint;
+
+			int Unit = CLIMATE_TEMP_SETPOINT_UNIT;
+
 			std::vector<std::vector<std::string>> result;
 			result = m_sql.safe_query("SELECT Name,nValue,sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d) AND (Type==%d) AND (Subtype==%d)", m_HwdID,
-				pSensor->unique_id.c_str(), 1, pSensor->devType, pSensor->subType);
+				pSensor->unique_id.c_str(), Unit, pSensor->devType, pSensor->subType);
 			if (result.empty())
 			{
 				// Insert
@@ -4147,14 +4250,14 @@ void MQTTAutoDiscover::handle_auto_discovery_climate(_tMQTTASensor* pSensor, con
 				}
 				int iUsed = (pSensor->bEnabled_by_default) ? 1 : 0;
 				m_sql.safe_query("INSERT INTO DeviceStatus (HardwareID, OrgHardwareID, DeviceID, Unit, Type, SubType, SignalLevel, BatteryLevel, Name, Used, nValue, sValue) "
-					"VALUES (%d, %d, '%q', 1, %d, %d, %d, %d, '%q', %d, %d, '%q')",
-					m_HwdID, 0, pSensor->unique_id.c_str(), pSensor->devType, pSensor->subType, pSensor->SignalLevel, pSensor->BatteryLevel, pSensor->name.c_str(), iUsed,
+					"VALUES (%d, %d, '%q', %d, %d, %d, %d, %d, '%q', %d, %d, '%q')",
+					m_HwdID, 0, pSensor->unique_id.c_str(), Unit, pSensor->devType, pSensor->subType, pSensor->SignalLevel, pSensor->BatteryLevel, pSensor->name.c_str(), iUsed,
 					pSensor->nValue, pSensor->sValue.c_str());
 			}
 			else
 			{
 				// Update
-				UpdateValueInt(m_HwdID, pSensor->unique_id.c_str(), 1, pSensor->devType, pSensor->subType, pSensor->SignalLevel, pSensor->BatteryLevel, pSensor->nValue,
+				UpdateValueInt(m_HwdID, pSensor->unique_id.c_str(), Unit, pSensor->devType, pSensor->subType, pSensor->SignalLevel, pSensor->BatteryLevel, pSensor->nValue,
 					pSensor->sValue.c_str(), result[0][0]);
 			}
 		}
@@ -5779,7 +5882,7 @@ bool MQTTAutoDiscover::SendCoverCommand(_tMQTTASensor* pSensor, const std::strin
 	return true;
 }
 
-bool MQTTAutoDiscover::SetSetpoint(const std::string& DeviceID, float Temp)
+bool MQTTAutoDiscover::SetSetpoint(const std::string& DeviceID, const uint8_t Unit, float Temp)
 {
 	if (m_discovered_sensors.find(DeviceID) == m_discovered_sensors.end())
 	{
@@ -5791,11 +5894,38 @@ bool MQTTAutoDiscover::SetSetpoint(const std::string& DeviceID, float Temp)
 		return false;
 	}
 
+	std::vector<std::vector<std::string>> result;
+	result = m_sql.safe_query("SELECT Name FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit==%d) AND (Type==%d) AND (Subtype==%d)",
+		m_HwdID, pSensor->unique_id.c_str(), Unit, pTypeSetpoint, sTypeSetpoint);
+	if (result.empty())
+		return false; //?? That's impossible
+
+	std::string szTopic = pSensor->state_topic;
+	std::string szSendTemplate;
+	switch (Unit)
+	{
+		case CLIMATE_TEMP_SETPOINT_UNIT:
+			if (!pSensor->temperature_command_topic.empty())
+				szTopic = pSensor->temperature_command_topic;
+			szSendTemplate = pSensor->temperature_command_template;
+			break;
+		case CLIMATE_HIGH_TEMP_SETPOINT_UNIT:
+			szTopic = pSensor->temperature_high_command_topic;
+			szSendTemplate = pSensor->temperature_high_command_template;
+			break;
+		case CLIMATE_LOW_TEMP_SETPOINT_UNIT:
+			szTopic = pSensor->temperature_low_command_topic;
+			szSendTemplate = pSensor->temperature_low_command_template;
+			break;
+		default:
+			Log(LOG_ERROR, "Climate device invalid Unit for SetPoint (%s/%s)", DeviceID.c_str(), pSensor->name.c_str());
+			return false;
+	}
 	Json::Value root;
 	std::string szSendValue;
-	if (!pSensor->temperature_command_template.empty())
+	if (!szSendTemplate.empty())
 	{
-		std::string szKey = GetValueTemplateKey(pSensor->temperature_command_template);
+		std::string szKey = GetValueTemplateKey(szSendTemplate);
 		if (!szKey.empty())
 			root[szKey] = Temp;
 		else
@@ -5808,22 +5938,14 @@ bool MQTTAutoDiscover::SetSetpoint(const std::string& DeviceID, float Temp)
 	else
 		szSendValue = std_format("%.1f", Temp);
 
-	std::string szTopic = pSensor->state_topic;
-	if (!pSensor->temperature_command_topic.empty())
-		szTopic = pSensor->temperature_command_topic;
 	SendMessage(szTopic, szSendValue);
 
 	//Because thermostats could be battery operated and not listening 24/7
 	//we force a value update internally in Domoticz so the user sees the just set SetPoint
 
 	pSensor->sValue = std_format("%.2f", Temp);
-	std::vector<std::vector<std::string>> result;
-	result = m_sql.safe_query("SELECT Name,nValue,sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d) AND (Type==%d) AND (Subtype==%d)", m_HwdID,
-		pSensor->unique_id.c_str(), 1, pTypeSetpoint, sTypeSetpoint);
-	if (result.empty())
-		return false; //?? That's impossible
 	// Update
-	UpdateValueInt(m_HwdID, pSensor->unique_id.c_str(), 1, pTypeSetpoint, sTypeSetpoint, pSensor->SignalLevel, pSensor->BatteryLevel,
+	UpdateValueInt(m_HwdID, pSensor->unique_id.c_str(), Unit, pTypeSetpoint, sTypeSetpoint, pSensor->SignalLevel, pSensor->BatteryLevel,
 		pSensor->nValue, pSensor->sValue.c_str(),
 		result[0][0]);
 
