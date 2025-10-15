@@ -314,7 +314,8 @@ const char* Switch_Type_Desc(const _eSwitchType sType)
 		{ STYPE_Selector, "Selector" },
 		{ STYPE_DoorLock, "Door Lock" },
 		{ STYPE_DoorLockInverted, "Door Lock Inverted" },
-		{ STYPE_BlindsPercentageWithStop, "Blinds + Stop" },
+		{ STYPE_BlindsPercentageWithStop, "Blinds % + Stop" },
+		{ STYPE_BlindsWithStop, "Blinds + Stop" },
 		{ 0, nullptr, nullptr },
 	};
 	return findTableIDSingle1(Table, sType);
@@ -1738,8 +1739,10 @@ void GetLightStatus(
 		}
 		break;
 	case pTypeBlinds:
-		if (switchtype == STYPE_BlindsPercentage || 
-			switchtype == STYPE_BlindsPercentageWithStop)
+		if (
+			switchtype == STYPE_BlindsPercentage
+			|| switchtype == STYPE_BlindsPercentageWithStop
+			)
 		{
 			bHaveDimmer = true;
 			maxDimLevel = 100;
@@ -2266,7 +2269,9 @@ void GetLightStatus(
 		break;
 	}
 
-	const bool bIsBlinds = (switchtype == STYPE_Blinds
+	const bool bIsBlinds = (
+		switchtype == STYPE_Blinds
+		|| switchtype == STYPE_BlindsWithStop
 		|| switchtype == STYPE_BlindsPercentage
 		|| switchtype == STYPE_BlindsPercentageWithStop
 		|| switchtype == STYPE_VenetianBlindsEU
