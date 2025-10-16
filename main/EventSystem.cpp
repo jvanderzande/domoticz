@@ -3774,6 +3774,7 @@ std::string CEventSystem::nValueToWording(const uint8_t dType, const uint8_t dSu
 	}
 	else if (
 		(switchtype == STYPE_Blinds)
+		|| (switchtype == STYPE_BlindsWithStop)
 		|| (switchtype == STYPE_BlindsPercentage)
 		|| (switchtype == STYPE_BlindsPercentageWithStop)
 		|| (switchtype == STYPE_VenetianBlindsUS)

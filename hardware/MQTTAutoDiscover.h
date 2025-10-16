@@ -102,6 +102,15 @@ class MQTTAutoDiscover : public MQTT
 		std::string current_temperature_topic;
 		std::string current_temperature_template;
 
+		std::string temperature_high_command_topic;
+		std::string temperature_high_command_template;
+		std::string temperature_high_state_template;
+		std::string temperature_high_state_topic;
+		std::string temperature_low_command_topic;
+		std::string temperature_low_command_template;
+		std::string temperature_low_state_template;
+		std::string temperature_low_state_topic;
+
 		std::vector<std::string> preset_modes;
 		std::string preset_mode_command_topic;
 		std::string preset_mode_command_template;
@@ -181,7 +190,7 @@ public:
 		const char* sValue, std::string& devname, bool bUseOnOffAction = true, const std::string& user = "");
 	bool SendSwitchCommand(const std::string& DeviceID, const std::string& DeviceName, int Unit, std::string command, int level, _tColor color, const std::string& user);
 	bool SendIRCommand(const std::string& DeviceID, const std::string& DeviceName, int Unit, std::string command, int level, _tColor color, const std::string& user);
-	bool SetSetpoint(const std::string& DeviceID, const float Temp);
+	bool SetSetpoint(const std::string& DeviceID, const uint8_t Unit, const float Temp);
 	bool SetTextDevice(const std::string& DeviceID, const std::string& text);
 
 	void GetConfig(Json::Value& root);
@@ -204,6 +213,15 @@ private:
 	bool SetValueWithTemplate(Json::Value& root, std::string szValueTemplate, std::string szValue);
 	bool GuessSensorTypeValue(_tMQTTASensor* pSensor, uint8_t& devType, uint8_t& subType, std::string& szOptions, int& nValue, std::string& sValue);
 	void ApplySignalLevelDevice(const _tMQTTASensor* pSensor);
+
+	bool InsertUpdateSetpoint(
+		_tMQTTASensor* pSensor,
+		const std::string& command_topic,
+		const std::string& state_topic,
+		const std::string& state_template,
+		const int Unit,
+		const struct mosquitto_message* message
+		);
 
 	void on_auto_discovery_message(const struct mosquitto_message* message);
 	void handle_auto_discovery_sensor_message(const struct mosquitto_message* message,const std::string &subscribed_topic);

@@ -1,4 +1,5 @@
 Version 2025.xxxx
+- Implemented: MQTT-AD, added support for Climate high/low setpoints
 
 Version 2025.2 (October 13th 2025)
 - Implemented: EnergyDashboard, add option for (Outside) Temperature Sensor
@@ -7,6 +8,8 @@ Version 2025.2 (October 13th 2025)
 - Implemented: Kodi, support for 'tvshow' type
 - Implemented: MQTT-AD, added support for Climate action_template/state
 - Implemented: MQTT-AD, added support for IR Blaster (Tuya iH-F8260)
+- Implemented: MQTT-AD, support for disabling cover stop button
+- Implemented: New Blinds type "Blinds + Stop"
 - Implemented: MQTT-AD, handling battery low boolean sensors
 - Implemented: MQTT-AD, allow publishing messages
 - Implemented: P1 Chart, Report: Added Total Column (Usage-Return)
