@@ -81,6 +81,7 @@ private:
 	std::string m_IPAddress;
 	unsigned short m_Port;
 	std::string m_UserName;
+	std::string m_html_schema = "http";
 	std::shared_ptr<std::thread> m_thread;
 	std::map<int, _tHueLightState> m_lights;
 	std::map<int, _tHueGroup> m_groups;

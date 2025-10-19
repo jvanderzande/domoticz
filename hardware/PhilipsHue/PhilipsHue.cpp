@@ -75,6 +75,11 @@ CPhilipsHue::CPhilipsHue(const int ID, const std::string& IPAddress, const unsig
 		Log(LOG_STATUS, "Using poll interval of %d secs.", m_poll_interval);
 	}
 
+	if (Port == 443)
+		m_html_schema = "https";
+	else
+		m_html_schema = "http";
+
 	Init();
 }
 
@@ -382,7 +387,7 @@ bool CPhilipsHue::SwitchLight(const int nodeID, const std::string& LCmd, const i
 	if (nodeID < 1000)
 	{
 		//Light
-		sstr2 << "https://" << m_IPAddress
+		sstr2 << m_html_schema << "://" << m_IPAddress
 			<< ":" << m_Port
 			<< "/api/" << m_UserName
 			<< "/lights/" << nodeID << "/state";
@@ -390,7 +395,7 @@ bool CPhilipsHue::SwitchLight(const int nodeID, const std::string& LCmd, const i
 	else if (nodeID < 2000)
 	{
 		//Group
-		sstr2 << "https://" << m_IPAddress
+		sstr2 << m_html_schema << "://" << m_IPAddress
 			<< ":" << m_Port
 			<< "/api/" << m_UserName
 			<< "/groups/" << nodeID - 1000 << "/action";
@@ -411,7 +416,7 @@ bool CPhilipsHue::SwitchLight(const int nodeID, const std::string& LCmd, const i
 		sPostData.clear();
 		sPostData.str("");
 		sPostData << R"({"scene": ")" << result[0][0] << "\"}";
-		sstr2 << "https://" << m_IPAddress
+		sstr2 << m_html_schema << "://" << m_IPAddress
 			<< ":" << m_Port
 			<< "/api/" << m_UserName
 			<< "/groups/0/action";
@@ -453,7 +458,14 @@ std::string CPhilipsHue::RegisterUser(const std::string& IPAddress, const unsign
 	sPostData = R"({ "devicetype": "domoticz" })";
 
 	std::stringstream sstr2;
-	sstr2 << "https://" << IPAddress
+
+	std::string html_schema;
+	if (Port == 443)
+		html_schema = "https";
+	else
+		html_schema = "http";
+
+	sstr2 << html_schema << "://" << IPAddress
 		<< ":" << Port
 		<< "/api";
 	std::string sURL = sstr2.str();
@@ -720,7 +732,7 @@ bool CPhilipsHue::GetStates()
 	sResult = ReadFile("E:\\philipshue.json");
 #else
 	std::stringstream sstr2;
-	sstr2 << "https://" << m_IPAddress
+	sstr2 << m_html_schema << "://" << m_IPAddress
 		<< ":" << m_Port
 		<< "/api/" << m_UserName;
 	//Get Data
@@ -922,7 +934,7 @@ bool CPhilipsHue::GetGroups(const Json::Value& root)
 	}
 	//Special Request for Group0 (All Lights)
 	std::stringstream sstr2;
-	sstr2 << "https://" << m_IPAddress
+	sstr2 << m_html_schema << "://" << m_IPAddress
 		<< ":" << m_Port
 		<< "/api/" << m_UserName
 		<< "/groups/0";
