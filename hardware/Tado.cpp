@@ -56,7 +56,7 @@ CTado::CTado(const int ID, const int PollInterval)
 		m_iPollInterval = PollInterval;
 		//Compute new maxloops based on pollinterval, if maxloops < 1, set to 1 to be save
 		//Basically the 500 should be a define I guess, being the refresh intervall
-	    m_iTADO_TOKEN_MAXLOOPS = 500 / m_iPollInterval
+	    m_iTADO_TOKEN_MAXLOOPS = static_cast<int>(500 / m_iPollInterval)
 		if ( m_iTADO_TOKEN_MAXLOOPS < 1  ) 
 			m_iTADO_TOKEN_MAXLOOPS = 1
 	}
