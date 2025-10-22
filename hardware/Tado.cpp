@@ -56,9 +56,9 @@ CTado::CTado(const int ID, const int PollInterval)
 		m_iPollInterval = PollInterval;
 		//Compute new maxloops based on pollinterval, if maxloops < 1, set to 1 to be save
 		//Basically the 500 should be a define I guess, being the refresh intervall
-	    m_iTADO_TOKEN_MAXLOOPS = static_cast<int>(500 / m_iPollInterval)
+	        m_iTADO_TOKEN_MAXLOOPS = static_cast<int>(500 / m_iPollInterval);
 		if ( m_iTADO_TOKEN_MAXLOOPS < 1  ) 
-			m_iTADO_TOKEN_MAXLOOPS = 1
+			m_iTADO_TOKEN_MAXLOOPS = 1;
 	}
 }
 
@@ -235,6 +235,11 @@ bool CTado::GetAccessToken()
 	{
 		Log(LOG_ERROR, "Failed to get a Refresh Token");
 		return false;
+	}
+	else
+	{
+		//Mainly for debug reasons
+		Log(LOG_STATUS, "AccessToken refreshed.");
 	}
 
 	Json::Value root;
@@ -618,6 +623,7 @@ bool CTado::Do_Login_Work()
 void CTado::Do_Work()
 {
 	Log(LOG_STATUS, "Worker started. Will poll every %d seconds.", m_iPollInterval);
+	Log(LOG_STATUS,"Max loops set to: %d", m_iTADO_TOKEN_MAXLOOPS);
 	int iSecCounter = m_iPollInterval - 3;
 	int iTokenCycleCount = 0;
 
@@ -655,7 +661,7 @@ void CTado::Do_Work()
 		}
 		if (
 			(m_szAccessToken.empty())
-			|| (iTokenCycleCount++ > m_iTADO_TOKEN_MAXLOOPS)
+			|| (iTokenCycleCount++ >= m_iTADO_TOKEN_MAXLOOPS)
 			)
 		{
 			GetAccessToken();
