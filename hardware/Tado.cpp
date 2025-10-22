@@ -239,7 +239,7 @@ bool CTado::GetAccessToken()
 	else
 	{
 		//Mainly for debug reasons
-		Log(LOG_STATUS, "AccessToken refreshed.");
+		Log(LOG_STATUS, "Access Token refreshed.");
 	}
 
 	Json::Value root;
