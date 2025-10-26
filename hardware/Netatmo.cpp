@@ -2805,7 +2805,6 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 	//Parse Rooms
 	// First pars Rooms for Thermostat
 	std::string setpoint_mode_str;
-	std::string room_mode_str;
 	std::string setpoint_mode_fan;
 	int setpoint_mode_i;
 	int iDevIndex = 0;
@@ -3563,7 +3562,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 						//int sp_temp = stoi(room_setpoint);           // string to int
 
 						//Room Selector Switch
-						Debug(DEBUG_HARDWARE, "Room Selector Switch %s Room %s device %s | %s", room_mode_str.c_str(), roomName.c_str(), roomNetatmoID.c_str(), module_id.c_str());
+						Debug(DEBUG_HARDWARE, "Schedule Selector Switch %s Room %s device %s | %s", room_mode.c_str(), roomName.c_str(), roomNetatmoID.c_str(), module_id.c_str());
 						uint64_t roomid = convert_mac(roomNetatmoID);
 						int Room_int = int(roomid);
 						//int Room_int = stoi(roomNetatmoID); // std::__throw_out_of_range
@@ -3597,27 +3596,27 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 						t_R << room_temp;
 						t_R >> Temp;
 						SendTempSensor(crcId, batteryLevel, Temp, moduleName, mrf_status);
-						std::string room_mode;
+						std::string room_mode_str;
 
 						if (m_Device_types[roomNetatmoID] == "home")
 						{
-							room_mode = "10";
+							room_mode_str = "10";
 						}
 						else if (m_Device_types[roomNetatmoID] == "manual")
 						{
 							m_Device_types[roomNetatmoID] = "manual";
-							room_mode = "20";
+							room_mode_str = "20";
 						}
 						else if (m_Device_types[roomNetatmoID] == "max")
 						{
 							m_Device_types[roomNetatmoID] = "max";
-							room_mode = "30";
+							room_mode_str = "30";
 						}
 						else
 						{
 							// Thermostat therm_setpoint_mode: schedule / manual / max / away / hg
 							//m_Device_types[roomNetatmoID] = "home";
-							room_mode = "10";
+							room_mode_str = "10";
 						}
 
 						if (type == "NATherm1")
@@ -3650,9 +3649,9 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 							}
 							if (setModeSwitch)
 							{
-								Debug(DEBUG_HARDWARE, "Room Schedule mode %s %s %s", m_Device_types[roomNetatmoID].c_str(), roomNetatmoID.c_str(), room_mode_str.c_str());
+								Debug(DEBUG_HARDWARE, "Room mode %s %s %s", m_Device_types[roomNetatmoID].c_str(), roomNetatmoID.c_str(), room_mode_str.c_str());
 								//Max mode can only be applied on thermostat room
-								SendSelectorSwitch(Room_int, 16, room_mode, moduleName + " - Room", 15, true, "Off|Home|Manual|Max", "", true, m_Name);   // No RF-level - Battery level visible
+								SendSelectorSwitch(Room_int, 16, room_mode_str, moduleName + " - Room", 15, true, "Off|Home|Manual|Max", "", true, m_Name);   // No RF-level - Battery level visible
 							}
 							else
 								Log(LOG_ERROR, "NetatmoThermostat: Error Room Thermostat not available!");
@@ -3710,7 +3709,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 							{
 								Debug(DEBUG_HARDWARE, "Room mode %s %s %s", m_Device_types[roomNetatmoID].c_str(), roomNetatmoID.c_str(), room_mode_str.c_str());
 								//Max mode can only be applied on thermostat room
-								SendSelectorSwitch(Room_int, 16, room_mode, moduleName + " - Room", 15, true, "Off|Home|Manual", "", true, m_Name);   // No RF-level - Battery level visible
+								SendSelectorSwitch(Room_int, 16, room_mode_str, moduleName + " - Room", 15, true, "Off|Home|Manual", "", true, m_Name);   // No RF-level - Battery level visible
 							}
 							else
 								Log(LOG_ERROR, "NetatmoThermostat: Error Room Valve not available!");
