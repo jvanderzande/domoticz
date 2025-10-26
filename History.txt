@@ -1,6 +1,7 @@
 Version 2025.xxxx
 - Implemented: MQTT-AD, added support for Climate high/low setpoints
 - Implemented: Support for the Model Context Protocol (/mcp) for use with AI Agents
+- Fixed: Chart zoom buttons (notable on iOS devices)
 - Changed: PhilipsHue, now used HTTP scheme (HTTP/HTTPS) based on port number (80/443)
 
 Version 2025.2 (October 13th 2025)

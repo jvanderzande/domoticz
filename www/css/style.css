@@ -2466,13 +2466,15 @@ table.display thead th.sorting_disabled div.DataTables_sort_wrapper {
 	border-width: 0px;
 }
 .zoom-buttons-container {
+	display: flex;
 	position: absolute;
 	right: 50px;
 	padding-top: 11px;
 	z-index: 1;
 }
 .zoom-button {
-	margin-left: -11px;
+	margin-left: 5px;
+	margin-right: 5px !important;
 	background-color: transparent;
 	color: rgb(221, 221, 221);
 }
