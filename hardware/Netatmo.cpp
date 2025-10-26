@@ -719,6 +719,7 @@ bool CNetatmo::WriteToHardware(const char* pdata, const unsigned char /*length*/
 		bool bRet;              //Parsing status
 		std::string roomNetatmoID = m_DeviceModuleID[uid];
 		std::string Home_id = m_DeviceHomeID[roomNetatmoID];      // Home_ID
+		m_Device_types[roomNetatmoID] = mode;
 
 		home_data = "home_id=" + Home_id + "&room_id=" + roomNetatmoID.c_str() + "&mode=" + mode + "&endtime=" + std::to_string(end_time) + "&";
 		// https://api.netatmo.com/api/setroomthermpoint?home_id=xxxxxx&room_id=xxxxxxx&mode=manual&temp=22&endtime=xxxxxxxxx
@@ -2914,16 +2915,8 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 
 					// create / update the switch for setting room mode
 					// Possible; home / manual / max
-					std::string schedule_mode;
-					if ((m_Device_types[roomNetatmoID] == "home") || (m_Device_types[roomNetatmoID] == "manual")  || (m_Device_types[roomNetatmoID] == "max"))
-					{
-						schedule_mode = m_Device_types[roomNetatmoID];
-					}
-					else
-					{
-						m_Device_types[roomNetatmoID] = setpoint_mode;
-					}
-					Debug(DEBUG_HARDWARE, "Room Schedule mode %s %s %s", schedule_mode.c_str(), roomNetatmoID.c_str(), setpoint_mode.c_str());
+					m_Device_types[roomNetatmoID] = setpoint_mode;
+					Debug(DEBUG_HARDWARE, "Room Schedule mode %s %s %s", m_Device_types[roomNetatmoID].c_str(), roomNetatmoID.c_str(), setpoint_mode.c_str());
 
 					// thermostatID not defined
 					setModeSwitch = true;
@@ -3567,7 +3560,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 						int Room_int = int(roomid);
 						//int Room_int = stoi(roomNetatmoID); // std::__throw_out_of_range
 						m_DeviceModuleID[Room_int] = roomNetatmoID;            // mac-adres
-						m_Device_types[roomNetatmoID] = "room";
+						//m_Device_types[roomNetatmoID] = "room";
 						m_RoomIDs[roomNetatmoID] = roomNetatmoID;
 						//type_module == "room";
 						m_ModuleNames[module_id] = moduleName;
