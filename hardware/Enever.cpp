@@ -28,7 +28,7 @@
 #endif
 
 #define ENEVER_FEED_ELEC_TODAY "https://enever.nl/apiv3/stroomprijs_vandaag.php?token={token}&resolution=60"
-#define ENEVER_FEED_ELEC_TOMORROW "https://enever.nlv3/api/stroomprijs_morgen.php?token={token}&resolution=60"
+#define ENEVER_FEED_ELEC_TOMORROW "https://enever.nl/apiv3/stroomprijs_morgen.php?token={token}&resolution=60"
 #define ENEVER_FEED_GAS_TODAY "https://enever.nl/apiv3/gasprijs_vandaag.php?token={token}"
 
 #ifdef DEBUG_Enever_W
