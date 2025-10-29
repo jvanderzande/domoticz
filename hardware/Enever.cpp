@@ -27,9 +27,9 @@
 //#define DEBUG_Enever_W
 #endif
 
-#define ENEVER_FEED_ELEC_TODAY "https://enever.nl/api/stroomprijs_vandaag.php?token={token}"
-#define ENEVER_FEED_ELEC_TOMORROW "https://enever.nl/api/stroomprijs_morgen.php?token={token}"
-#define ENEVER_FEED_GAS_TODAY "https://enever.nl/api/gasprijs_vandaag.php?token={token}"
+#define ENEVER_FEED_ELEC_TODAY "https://enever.nl/apiv3/stroomprijs_vandaag.php?token={token}&resolution=60"
+#define ENEVER_FEED_ELEC_TOMORROW "https://enever.nl/apiv3/stroomprijs_morgen.php?token={token}&resolution=60"
+#define ENEVER_FEED_GAS_TODAY "https://enever.nl/apiv3/gasprijs_vandaag.php?token={token}"
 
 #ifdef DEBUG_Enever_W
 void SaveString2Disk(std::string str, std::string filename)
@@ -227,7 +227,7 @@ std::string Enever::MakeURL(const std::string& sURL)
 	std::string szResult = sURL;
 	stdreplace(szResult, "{token}", m_szToken);
 	if (m_bUseQuarterPrices)
-		stdreplace(szResult, "/api/", "/apiv2/");
+		stdreplace(szResult, "&resolution=60", "&resolution=15");
 	return szResult;
 }
 
