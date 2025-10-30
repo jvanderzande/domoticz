@@ -3560,7 +3560,6 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 						int Room_int = int(roomid);
 						//int Room_int = stoi(roomNetatmoID); // std::__throw_out_of_range
 						m_DeviceModuleID[Room_int] = roomNetatmoID;            // mac-adres
-						//m_Device_types[roomNetatmoID] = "room";
 						m_RoomIDs[roomNetatmoID] = roomNetatmoID;
 						//type_module == "room";
 						m_ModuleNames[module_id] = moduleName;
