@@ -797,195 +797,8 @@ bool CPhilipsHue::GetStates()
 	GetGroups(root);
 	GetScenes(root);
 	GetSensors(root);
-
-	// call v2 sensors UpdateAll() and map to Domoticz devices (change-aware)
-	if (m_use_v2_sensors && m_v2sensors)
-	{
-		try
-		{
-			if (m_v2sensors->UpdateAll())
-			{
-				// Build map device id -> device data for name lookup
-				std::map<std::string, HueV2Device> deviceById;
-				for (const auto &d : m_v2sensors->GetDevices())
-					deviceById[d.id] = d;
-
-				// Map contact resources to Domoticz switches (one device per owner/device), but only when changed
-				for (const auto &c : m_v2sensors->GetContacts())
-				{
-					const std::string ownerRid = c.owner_rid;
-					if (ownerRid.empty())
-						continue;
-
-					// Name lookup
-					std::string friendlyName;
-					auto dit = deviceById.find(ownerRid);
-					if (dit != deviceById.end() && !dit->second.name.empty())
-						friendlyName = dit->second.name + " (Contact)";
-					else
-						friendlyName = "Hue V2 Contact";
-
-					// Compute Domoticz node for device (owner-based)
-					int nodeID = NodeIDFromRid(ownerRid);
-					int domoticzNodeID = nodeID + 3000;
-
-					// Check previous state: skip if state and changed timestamp are identical to last poll
-					bool doUpdate = true;
-					auto itPrevState = m_v2_contact_state.find(ownerRid);
-					auto itPrevChanged = m_v2_contact_changed.find(ownerRid);
-					if (itPrevState != m_v2_contact_state.end() && itPrevChanged != m_v2_contact_changed.end())
-					{
-						if (itPrevState->second == c.state && itPrevChanged->second == c.changed)
-							doUpdate = false;
-					}
-
-					if (!doUpdate)
-						continue;
-
-					// contact_report.state: "contact" => closed (not alarmed). "no_contact" => open
-					bool isOpen = (c.state == "no_contact");
-
-					// Update/create Domoticz device and record state
-					InsertUpdateSwitch(domoticzNodeID, 1, STYPE_DoorContact, isOpen, friendlyName, 0);
-
-					// Store last-seen state and changed timestamp
-					m_v2_contact_state[ownerRid] = c.state;
-					m_v2_contact_changed[ownerRid] = c.changed;
-				}
-
-				// Map tamper resources similarly, only update when changed
-				for (const auto &t : m_v2sensors->GetTampers())
-				{
-					const std::string ownerRid = t.owner_rid;
-					if (ownerRid.empty())
-						continue;
-
-					std::string friendlyName;
-					auto dit = deviceById.find(ownerRid);
-					if (dit != deviceById.end() && !dit->second.name.empty())
-						friendlyName = dit->second.name + " (Tamper)";
-					else
-						friendlyName = "Hue V2 Tamper";
-
-					int nodeID = NodeIDFromRid(ownerRid);
-					int domoticzNodeID = nodeID + 4000;
-
-					// If there is no tamper report changed timestamp and no state, treat as no change
-					bool doUpdate = true;
-					auto itPrevState = m_v2_tamper_state.find(ownerRid);
-					auto itPrevChanged = m_v2_tamper_changed.find(ownerRid);
-					if (itPrevState != m_v2_tamper_state.end() && itPrevChanged != m_v2_tamper_changed.end())
-					{
-						if (itPrevState->second == t.state && itPrevChanged->second == t.changed)
-							doUpdate = false;
-					}
-
-					if (!doUpdate)
-						continue;
-					
-					bool isTampered = (t.state == "tampered");
-
-					InsertUpdateSwitch(domoticzNodeID, 1, STYPE_OnOff, isTampered, friendlyName, 0);
-
-					m_v2_tamper_state[ownerRid] = t.state;
-					m_v2_tamper_changed[ownerRid] = t.changed;
-				}
-
-				// Map device_power to battery updates; only update existing devices and only when battery level changed
-				for (const auto &p : m_v2sensors->GetDevicePowers())
-				{
-					const std::string ownerRid = p.owner_rid;
-					if (ownerRid.empty())
-						continue;
-
-					// Only update battery for devices discovered in v2 device list
-					auto dit = deviceById.find(ownerRid);
-					if (dit == deviceById.end())
-						continue;
-
-					// Determine numeric batteryLevel: prefer explicit numeric; otherwise map battery_state heuristically.
-					int batteryLevel = p.battery_level; // parsed (-1 if missing)
-					if (batteryLevel < 0)
-					{
-						if (p.battery_state == "full" || p.battery_state == "normal")
-							batteryLevel = 100;
-						else if (p.battery_state == "high")
-							batteryLevel = 90;
-						else if (p.battery_state == "low")
-							batteryLevel = 20;
-						else if (p.battery_state == "critical")
-							batteryLevel = 5;
-						else
-							batteryLevel = 255; // unknown
-					}
-					if (batteryLevel > 100 && batteryLevel != 255) batteryLevel = 100;
-					if (batteryLevel == 255)
-						continue;
-
-					// Determine the Domoticz node IDs (owner-based)
-					int baseNode = NodeIDFromRid(ownerRid);
-					int domoticzNodeID_contact = baseNode + 3000;
-					int domoticzNodeID_tamper  = baseNode + 4000;
-
-					// Only update contact device if it exists; update only when battery changed
-					char szID[16];
-					std::vector<std::vector<std::string>> result;
-
-					sprintf(szID, "%08X", domoticzNodeID_contact);
-					result = m_sql.safe_query("SELECT ID, BatteryLevel FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d)",
-											m_HwdID, szID, 1);
-					if (!result.empty())
-					{
-						int deviceRowId = atoi(result[0][0].c_str());
-						int prevBattery = atoi(result[0][1].c_str());
-						if (prevBattery != batteryLevel)
-						{
-							// preserve current nValue for push
-							int nValue = 0;
-							auto res2 = m_sql.safe_query("SELECT nValue FROM DeviceStatus WHERE ID=%d", deviceRowId);
-							if (!res2.empty()) nValue = atoi(res2[0][0].c_str());
-							bool contactIsOn = (nValue != 0);
-							std::string contactName = (dit != deviceById.end() && !dit->second.name.empty()) ? (dit->second.name + " (Contact)") : "Hue V2 Contact";
-
-							InsertUpdateSwitch(domoticzNodeID_contact, 1, STYPE_DoorContact, contactIsOn, contactName, (uint8_t)batteryLevel);
-							m_sql.safe_query("UPDATE DeviceStatus SET BatteryLevel=%d, LastUpdate=datetime('now','localtime') WHERE ID=%d", batteryLevel, deviceRowId);
-							m_v2_battery_level[ownerRid] = batteryLevel;
-						}
-					}
-
-					// Tamper device (same approach)
-					sprintf(szID, "%08X", domoticzNodeID_tamper);
-					result = m_sql.safe_query("SELECT ID, BatteryLevel FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d)",
-											m_HwdID, szID, 1);
-					if (!result.empty())
-					{
-						int deviceRowId = atoi(result[0][0].c_str());
-						int prevBattery = atoi(result[0][1].c_str());
-						if (prevBattery != batteryLevel)
-						{
-							int nValue = 0;
-							auto res2 = m_sql.safe_query("SELECT nValue FROM DeviceStatus WHERE ID=%d", deviceRowId);
-							if (!res2.empty()) nValue = atoi(res2[0][0].c_str());
-							bool tamperIsOn = (nValue != 0);
-							std::string tamperName = (dit != deviceById.end() && !dit->second.name.empty()) ? (dit->second.name + " (Tamper)") : "Hue V2 Tamper";
-
-							InsertUpdateSwitch(domoticzNodeID_tamper, 1, STYPE_OnOff, tamperIsOn, tamperName, (uint8_t)batteryLevel);
-							m_sql.safe_query("UPDATE DeviceStatus SET BatteryLevel=%d, LastUpdate=datetime('now','localtime') WHERE ID=%d", batteryLevel, deviceRowId);
-							m_v2_battery_level[ownerRid] = batteryLevel;
-						}
-					}
-				}
-			}
-			else
-			{
-				_log.Debug(DEBUG_HARDWARE, "PhilipsHue: v2 sensors fetch returned no data or failed.");
-			}
-		}
-		catch (const std::exception &e)
-		{
-			_log.Log(LOG_ERROR, "PhilipsHue: exception in v2 sensor handling: %s", e.what());
-		}
-	}
+	GetV2Sensors();
+	
 	return true;
 }
 
@@ -1307,6 +1120,200 @@ bool CPhilipsHue::GetScenes(const Json::Value& root)
 			}
 		}
 	}
+	return true;
+}
+
+bool CPhilipsHue::GetV2Sensors()
+{
+	// call v2 sensors UpdateAll() and map to Domoticz devices (change-aware)
+	if (m_use_v2_sensors && m_v2sensors)
+	{
+		try
+		{
+			if (m_v2sensors->UpdateAll())
+			{
+				// Build map device id -> device data for name lookup
+				std::map<std::string, HueV2Device> deviceById;
+				for (const auto &d : m_v2sensors->GetDevices())
+					deviceById[d.id] = d;
+
+				// Map contact resources to Domoticz switches (one device per owner/device), but only when changed
+				for (const auto &c : m_v2sensors->GetContacts())
+				{
+					const std::string ownerRid = c.owner_rid;
+					if (ownerRid.empty())
+						continue;
+
+					// Name lookup
+					std::string friendlyName;
+					auto dit = deviceById.find(ownerRid);
+					if (dit != deviceById.end() && !dit->second.name.empty())
+						friendlyName = dit->second.name + " (Contact)";
+					else
+						friendlyName = "Hue V2 Contact";
+
+					// Compute Domoticz node for device (owner-based)
+					int nodeID = NodeIDFromRid(ownerRid);
+					int domoticzNodeID = nodeID + 3000;
+
+					// Check previous state: skip if state and changed timestamp are identical to last poll
+					bool doUpdate = true;
+					auto itPrevState = m_v2_contact_state.find(ownerRid);
+					auto itPrevChanged = m_v2_contact_changed.find(ownerRid);
+					if (itPrevState != m_v2_contact_state.end() && itPrevChanged != m_v2_contact_changed.end())
+					{
+						if (itPrevState->second == c.state && itPrevChanged->second == c.changed)
+							doUpdate = false;
+					}
+
+					if (!doUpdate)
+						continue;
+
+					// contact_report.state: "contact" => closed (not alarmed). "no_contact" => open
+					bool isOpen = (c.state == "no_contact");
+
+					// Update/create Domoticz device and record state
+					InsertUpdateSwitch(domoticzNodeID, 1, STYPE_DoorContact, isOpen, friendlyName, 0);
+
+					// Store last-seen state and changed timestamp
+					m_v2_contact_state[ownerRid] = c.state;
+					m_v2_contact_changed[ownerRid] = c.changed;
+				}
+
+				// Map tamper resources similarly, only update when changed
+				for (const auto &t : m_v2sensors->GetTampers())
+				{
+					const std::string ownerRid = t.owner_rid;
+					if (ownerRid.empty())
+						continue;
+
+					std::string friendlyName;
+					auto dit = deviceById.find(ownerRid);
+					if (dit != deviceById.end() && !dit->second.name.empty())
+						friendlyName = dit->second.name + " (Tamper)";
+					else
+						friendlyName = "Hue V2 Tamper";
+
+					int nodeID = NodeIDFromRid(ownerRid);
+					int domoticzNodeID = nodeID + 4000;
+
+					// If there is no tamper report changed timestamp and no state, treat as no change
+					bool doUpdate = true;
+					auto itPrevState = m_v2_tamper_state.find(ownerRid);
+					auto itPrevChanged = m_v2_tamper_changed.find(ownerRid);
+					if (itPrevState != m_v2_tamper_state.end() && itPrevChanged != m_v2_tamper_changed.end())
+					{
+						if (itPrevState->second == t.state && itPrevChanged->second == t.changed)
+							doUpdate = false;
+					}
+
+					if (!doUpdate)
+						continue;
+					
+					bool isTampered = (t.state == "tampered");
+
+					InsertUpdateSwitch(domoticzNodeID, 1, STYPE_OnOff, isTampered, friendlyName, 0);
+
+					m_v2_tamper_state[ownerRid] = t.state;
+					m_v2_tamper_changed[ownerRid] = t.changed;
+				}
+
+				// Map device_power to battery updates; only update existing devices and only when battery level changed
+				for (const auto &p : m_v2sensors->GetDevicePowers())
+				{
+					const std::string ownerRid = p.owner_rid;
+					if (ownerRid.empty())
+						continue;
+
+					// Only update battery for devices discovered in v2 device list
+					auto dit = deviceById.find(ownerRid);
+					if (dit == deviceById.end())
+						continue;
+
+					// Determine numeric batteryLevel: prefer explicit numeric; otherwise map battery_state heuristically.
+					int batteryLevel = p.battery_level; // parsed (-1 if missing)
+					if (batteryLevel < 0)
+					{
+						if (p.battery_state == "full" || p.battery_state == "normal")
+							batteryLevel = 100;
+						else if (p.battery_state == "high")
+							batteryLevel = 90;
+						else if (p.battery_state == "low")
+							batteryLevel = 20;
+						else if (p.battery_state == "critical")
+							batteryLevel = 5;
+						else
+							batteryLevel = 255; // unknown
+					}
+					if (batteryLevel > 100 && batteryLevel != 255) batteryLevel = 100;
+					if (batteryLevel == 255)
+						continue;
+
+					// Determine the Domoticz node IDs (owner-based)
+					int baseNode = NodeIDFromRid(ownerRid);
+					int domoticzNodeID_contact = baseNode + 3000;
+					int domoticzNodeID_tamper  = baseNode + 4000;
+
+					// Only update contact device if it exists; update only when battery changed
+					char szID[16];
+					std::vector<std::vector<std::string>> result;
+
+					sprintf(szID, "%08X", domoticzNodeID_contact);
+					result = m_sql.safe_query("SELECT ID, BatteryLevel FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d)",
+											m_HwdID, szID, 1);
+					if (!result.empty())
+					{
+						int deviceRowId = atoi(result[0][0].c_str());
+						int prevBattery = atoi(result[0][1].c_str());
+						if (prevBattery != batteryLevel)
+						{
+							// preserve current nValue for push
+							int nValue = 0;
+							auto res2 = m_sql.safe_query("SELECT nValue FROM DeviceStatus WHERE ID=%d", deviceRowId);
+							if (!res2.empty()) nValue = atoi(res2[0][0].c_str());
+							bool contactIsOn = (nValue != 0);
+							std::string contactName = (dit != deviceById.end() && !dit->second.name.empty()) ? (dit->second.name + " (Contact)") : "Hue V2 Contact";
+
+							InsertUpdateSwitch(domoticzNodeID_contact, 1, STYPE_DoorContact, contactIsOn, contactName, (uint8_t)batteryLevel);
+							m_sql.safe_query("UPDATE DeviceStatus SET BatteryLevel=%d, LastUpdate=datetime('now','localtime') WHERE ID=%d", batteryLevel, deviceRowId);
+							m_v2_battery_level[ownerRid] = batteryLevel;
+						}
+					}
+
+					// Tamper device (same approach)
+					sprintf(szID, "%08X", domoticzNodeID_tamper);
+					result = m_sql.safe_query("SELECT ID, BatteryLevel FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d)",
+											m_HwdID, szID, 1);
+					if (!result.empty())
+					{
+						int deviceRowId = atoi(result[0][0].c_str());
+						int prevBattery = atoi(result[0][1].c_str());
+						if (prevBattery != batteryLevel)
+						{
+							int nValue = 0;
+							auto res2 = m_sql.safe_query("SELECT nValue FROM DeviceStatus WHERE ID=%d", deviceRowId);
+							if (!res2.empty()) nValue = atoi(res2[0][0].c_str());
+							bool tamperIsOn = (nValue != 0);
+							std::string tamperName = (dit != deviceById.end() && !dit->second.name.empty()) ? (dit->second.name + " (Tamper)") : "Hue V2 Tamper";
+
+							InsertUpdateSwitch(domoticzNodeID_tamper, 1, STYPE_OnOff, tamperIsOn, tamperName, (uint8_t)batteryLevel);
+							m_sql.safe_query("UPDATE DeviceStatus SET BatteryLevel=%d, LastUpdate=datetime('now','localtime') WHERE ID=%d", batteryLevel, deviceRowId);
+							m_v2_battery_level[ownerRid] = batteryLevel;
+						}
+					}
+				}
+			}
+			else
+			{
+				_log.Debug(DEBUG_HARDWARE, "PhilipsHue: v2 sensors fetch returned no data or failed.");
+			}
+		}
+		catch (const std::exception &e)
+		{
+			_log.Log(LOG_ERROR, "PhilipsHue: exception in v2 sensor handling: %s", e.what());
+		}
+	}
+	
 	return true;
 }
 
