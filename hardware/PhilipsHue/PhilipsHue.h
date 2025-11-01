@@ -97,11 +97,11 @@ private:
 	std::map<int, std::string> m_lightModels;
 
 // NEW: V2 sensors integration members
-public:
+//public:
 	// Option flag (bit) to enable Philips Hue v2 CLIP sensors support
 	// Set this bit in the 'Options' parameter when constructing CPhilipsHue
 	// Example: Options | HUE_USE_V2_SENSORS
-	static const int HUE_USE_V2_SENSORS = 0x04;
+	//static const int HUE_USE_V2_SENSORS = 0x04;
 
 private:
 	bool m_use_v2_sensors = false;
