@@ -683,9 +683,6 @@ table.mobileitem {
 	background-color: #FFFFFF;
 	width: 100%;
 }
-.status {
-	white-space: nowrap;
-}
 
 .mobileitem {
 	border: solid #ccc 1px;
