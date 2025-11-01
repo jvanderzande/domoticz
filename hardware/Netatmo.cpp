@@ -888,7 +888,7 @@ bool CNetatmo::SetProgramState(const int uid, const int newState)
 		bHaveDevice = true;
 		// Energy        {NAPlug, OTH, BNS}
 		// Home+control  {NLG,    OTH, BNS, NBG,              BNMH}
-		// Home+security {NACamera, NOC, NDB, NSD, NCO, BNCX, BNMH}
+		// Home+security {NACamera, NOC, NDB, NSD, NCO, BNCX, BNMH, NPC}
 
 		// NAPlug = Netatmo Thermostat
 		// BNS = Smarther with Netatmo Thermostat
@@ -924,7 +924,7 @@ bool CNetatmo::SetProgramState(const int uid, const int newState)
 	if(!m_PowerDeviceID[uid].empty())
 	{
 		// Home+control  {NLG,    OTH, BNS, NBG,              BNMH, NLF, NLP, NLPO, NLM}
-		// Home+security {NACamera, NOC, NDB, NSD, NCO, BNCX, BNMH}
+		// Home+security {NACamera, NOC, NDB, NSD, NCO, BNCX, BNMH, NPC}
 		//Debug(DEBUG_HARDWARE, "Set Program State MAC = %s - %d", module_id.c_str(), newState);
 		std::string _data;
 		std::string State;
@@ -2195,7 +2195,7 @@ void CNetatmo::Get_RoomMeasure(std::string& home_id, std::string& room_id, std::
 /// <summary>
 /// Get events
 /// <param name="home_id">ID-number of the NetatmoHome</param>
-/// <param name="device_types">Type of the module {NACamera, NOC, NSD, NCO, NDB, BNCX, BNMH} to retrieve last 30 events</param>
+/// <param name="device_types">Type of the module {NACamera, NOC, NSD, NCO, NDB, BNCX, BNMH, NPC} to retrieve last 30 events</param>
 /// <param name="event_id">identification number of event</param>
 /// <param name="person_id">identification number of detected person</param>
 /// <param name="device_id">MAC-adres of the Netatmo Device</param>
@@ -3082,10 +3082,6 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 					{
 						tNetatmoLastUpdate = 0;
 					}
-					else if (type == "NPC")
-					{
-						tNetatmoLastUpdate = 0;
-					}
 				}
 				if (!module["reachable"].empty())
 				{
@@ -3841,7 +3837,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 					{
 						continue;
 					}
-					if ((type == "NACamera") || (type == "NCO") || (type == "NDB") || (type == "NOC") || (type == "NSD") || (type == "NIS") || (type == "NDL"))
+					if ((type == "NACamera") || (type == "NCO") || (type == "NDB") || (type == "NOC") || (type == "NSD") || (type == "NIS") || (type == "NDL") || (type == "NPC"))
 					{
 						//Only use Get Events when correct device is presend
 						m_bPollGetEvents = true;
