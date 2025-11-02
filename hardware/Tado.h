@@ -86,6 +86,8 @@ private:
 	bool m_bDoGetZones = false;
 
 	int m_iPollInterval = 30;
+	int m_iTADO_TOKEN_MAXLOOPS = 12;
+	int m_iTADO_TOKEN_REFRESHTIME = 500; //Time in seconds for the refresh to take place (600 is the time Tado sets)
 
 	std::vector<_tTadoHome> m_TadoHomes;
 };
