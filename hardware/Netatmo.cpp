@@ -2829,7 +2829,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 		Json::Value mRoot = root["body"]["home"]["rooms"];
 
 		//*****************************************************************************//
-		SaveJson2Disk(root, std::string("./HomeStatus_" + m_Name + "_:_" + home_id + ".txt")); //Save HOMESTATUS
+		//SaveJson2Disk(root, std::string("./HomeStatus_" + m_Name + "_:_" + home_id + ".txt")); //Save HOMESTATUS
 		//*****************************************************************************//
 
 		for (auto room : mRoot)
@@ -3015,7 +3015,7 @@ bool CNetatmo::ParseHomeStatus(const std::string& sResult, Json::Value& root, st
 				std::string type = module["type"].asString();
 				m_Device_types[module_id] = type;
 				//*****************************************************************************//
-				SaveJson2Disk(module, std::string("./") + moduleName.c_str() + ".txt");
+				//SaveJson2Disk(module, std::string("./") + moduleName.c_str() + ".txt");
 				//*****************************************************************************//
 
 				nDevice.ID = crcId;
