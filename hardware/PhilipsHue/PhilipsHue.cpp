@@ -64,14 +64,14 @@ CPhilipsHue::CPhilipsHue(const int ID, const std::string& IPAddress, const unsig
 	m_Port = Port;
 	m_poll_interval = PollInterval;
 	// Force-enable V2 sensors by default by OR-ing the option in here.
-    // This keeps callers unchanged but makes the behavior default-on.
-    //int effectiveOptions = Options | CPhilipsHue::HUE_USE_V2_SENSORS;
+	// This keeps callers unchanged but makes the behavior default-on.
+	//int effectiveOptions = Options | CPhilipsHue::HUE_USE_V2_SENSORS;
 	int effectiveOptions = Options | HUE_USE_V2_SENSORS;
 
-    m_add_groups = (effectiveOptions & HUE_NOT_ADD_GROUPS) != 0;
-    m_add_scenes = (effectiveOptions & HUE_NOT_ADD_SCENES) != 0;
+	m_add_groups = (effectiveOptions & HUE_NOT_ADD_GROUPS) != 0;
+	m_add_scenes = (effectiveOptions & HUE_NOT_ADD_SCENES) != 0;
 
-    m_use_v2_sensors = (effectiveOptions & HUE_USE_V2_SENSORS) != 0;
+	m_use_v2_sensors = (effectiveOptions & HUE_USE_V2_SENSORS) != 0;
 
 	// Catch uninitialised Mode1 entry.
 	if (m_poll_interval < 1)
@@ -103,7 +103,7 @@ void CPhilipsHue::Init()
 			m_v2sensors = std::make_unique<CPhilipsHueV2Sensors>(m_html_schema, m_IPAddress, std::to_string(m_Port), m_UserName);
 			Log(LOG_STATUS, "PhilipsHue: v2 sensors support enabled.");
 		}
-		catch (const std::exception &e)
+		catch (const std::exception& e)
 		{
 			Log(LOG_ERROR, "PhilipsHue: failed to create v2 sensors helper: %s", e.what());
 			//m_v2sensors.reset();
@@ -800,12 +800,12 @@ bool CPhilipsHue::GetStates()
 	GetScenes(root);
 	GetSensors(root);
 	GetV2Sensors();
-	
+
 	return true;
 }
 
 // NEW: deterministic conversion from v2 uuid/rid string to numeric node ID
-int CPhilipsHue::NodeIDFromRid(const std::string &rid)
+int CPhilipsHue::NodeIDFromRid(const std::string& rid)
 {
 	// Stable non-cryptographic hash -> 32-bit int. Guaranteed deterministic across restarts.
 	std::hash<std::string> hasher;
@@ -820,16 +820,16 @@ void CPhilipsHue::LightStateFromJSON(const Json::Value& lightstate, _tHueLightSt
 {
 	if (lightstate.isObject())
 	{
-		tlight.level = 0;          // Brightness of the light. This is a scale from the minimum brightness the light is capable of, 1,
-								   // to the maximum capable brightness, 254.
-		tlight.sat = 0;            // Saturation of the light. 254 is the most saturated (colored) and 0 is the least saturated (white).
-		tlight.hue = 0;            // Hue of the light. This is a wrapping value between 0 and 65535.
-		tlight.ct = 0;             // The Mired Color temperature of the light. 2012 connected lights are capable of 153 (6500K) to 500 (2000K).
-		tlight.mode = HLMODE_NONE; // Indicates the color mode in which the light is working, this is the last command type it received. Values
-								   // are "hs" for Hue and Saturation, "xy" for XY and "ct" for Color Temperature.
-		tlight.x = 0.0;            // The x and y coordinates of a color in CIE color space.
-		tlight.y = 0.0;            // The first entry is the x coordinate and the second entry is the y coordinate. Both x and y must be between 0 and 1.
-								   // If the specified coordinates are not in the CIE color space, the closest color to the coordinates will be chosen.
+		tlight.level = 0;			// Brightness of the light. This is a scale from the minimum brightness the light is capable of, 1,
+									// to the maximum capable brightness, 254.
+		tlight.sat = 0;				// Saturation of the light. 254 is the most saturated (colored) and 0 is the least saturated (white).
+		tlight.hue = 0;				// Hue of the light. This is a wrapping value between 0 and 65535.
+		tlight.ct = 0;				// The Mired Color temperature of the light. 2012 connected lights are capable of 153 (6500K) to 500 (2000K).
+		tlight.mode = HLMODE_NONE;	// Indicates the color mode in which the light is working, this is the last command type it received. Values
+									// are "hs" for Hue and Saturation, "xy" for XY and "ct" for Color Temperature.
+		tlight.x = 0.0;				// The x and y coordinates of a color in CIE color space.
+		tlight.y = 0.0;				// The first entry is the x coordinate and the second entry is the y coordinate. Both x and y must be between 0 and 1.
+									// If the specified coordinates are not in the CIE color space, the closest color to the coordinates will be chosen.
 		tlight.on = false;
 
 		bool hasBri = false;
@@ -1128,7 +1128,8 @@ bool CPhilipsHue::GetScenes(const Json::Value& root)
 bool CPhilipsHue::GetV2Sensors()
 {
 	// call v2 sensors UpdateAll() and map to Domoticz devices (change-aware)
-	if (!m_use_v2_sensors || !m_v2sensors) return false;
+	if (!m_use_v2_sensors || !m_v2sensors)
+		return false;
 	//if (m_use_v2_sensors && m_v2sensors)
 	//{
 	try
@@ -1137,11 +1138,11 @@ bool CPhilipsHue::GetV2Sensors()
 		{
 			// Build map device id -> device data for name lookup
 			std::map<std::string, HueV2Device> deviceById;
-			for (const auto &d : m_v2sensors->GetDevices())
+			for (const auto& d : m_v2sensors->GetDevices())
 				deviceById[d.id] = d;
 
 			// Map contact resources to Domoticz switches (one device per owner/device), but only when changed
-			for (const auto &c : m_v2sensors->GetContacts())
+			for (const auto& c : m_v2sensors->GetContacts())
 			{
 				const std::string ownerRid = c.owner_rid;
 				if (ownerRid.empty())
@@ -1184,7 +1185,7 @@ bool CPhilipsHue::GetV2Sensors()
 			}
 
 			// Map tamper resources similarly, only update when changed
-			for (const auto &t : m_v2sensors->GetTampers())
+			for (const auto& t : m_v2sensors->GetTampers())
 			{
 				const std::string ownerRid = t.owner_rid;
 				if (ownerRid.empty())
@@ -1212,7 +1213,7 @@ bool CPhilipsHue::GetV2Sensors()
 
 				if (!doUpdate)
 					continue;
-				
+
 				bool isTampered = (t.state == "tampered");
 
 				InsertUpdateSwitch(domoticzNodeID, 1, STYPE_OnOff, isTampered, friendlyName, 0);
@@ -1222,7 +1223,7 @@ bool CPhilipsHue::GetV2Sensors()
 			}
 
 			// Map device_power to battery updates; only update existing devices and only when battery level changed
-			for (const auto &p : m_v2sensors->GetDevicePowers())
+			for (const auto& p : m_v2sensors->GetDevicePowers())
 			{
 				const std::string ownerRid = p.owner_rid;
 				if (ownerRid.empty())
@@ -1255,7 +1256,7 @@ bool CPhilipsHue::GetV2Sensors()
 				// Determine the Domoticz node IDs (owner-based)
 				int baseNode = NodeIDFromRid(ownerRid);
 				int domoticzNodeID_contact = baseNode + 3000;
-				int domoticzNodeID_tamper  = baseNode + 4000;
+				int domoticzNodeID_tamper = baseNode + 4000;
 
 				// Only update contact device if it exists; update only when battery changed
 				char szID[16];
@@ -1263,7 +1264,7 @@ bool CPhilipsHue::GetV2Sensors()
 
 				sprintf(szID, "%08X", domoticzNodeID_contact);
 				result = m_sql.safe_query("SELECT ID, BatteryLevel FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d)",
-										m_HwdID, szID, 1);
+					m_HwdID, szID, 1);
 				if (!result.empty())
 				{
 					int deviceRowId = atoi(result[0][0].c_str());
@@ -1286,7 +1287,7 @@ bool CPhilipsHue::GetV2Sensors()
 				// Tamper device (same approach)
 				sprintf(szID, "%08X", domoticzNodeID_tamper);
 				result = m_sql.safe_query("SELECT ID, BatteryLevel FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d)",
-										m_HwdID, szID, 1);
+					m_HwdID, szID, 1);
 				if (!result.empty())
 				{
 					int deviceRowId = atoi(result[0][0].c_str());
@@ -1311,12 +1312,12 @@ bool CPhilipsHue::GetV2Sensors()
 			_log.Debug(DEBUG_HARDWARE, "PhilipsHue: v2 sensors fetch returned no data or failed.");
 		}
 	}
-	catch (const std::exception &e)
+	catch (const std::exception& e)
 	{
 		_log.Log(LOG_ERROR, "PhilipsHue: exception in v2 sensor handling: %s", e.what());
 	}
 	//}
-	
+
 	return true;
 }
 

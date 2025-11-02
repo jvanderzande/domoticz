@@ -79,7 +79,7 @@ private:
 	static bool StatesSimilar(const _tHueLightState& s1, const _tHueLightState& s2);
 
 	// Helper: generate deterministic numeric NodeID from a v2 UUID/rid
-	static int NodeIDFromRid(const std::string &rid);
+	static int NodeIDFromRid(const std::string& rid);
 
 private:
 	int m_poll_interval;
@@ -95,14 +95,6 @@ private:
 	std::map<std::string, _tHueScene> m_scenes;
 	std::map<int, CPHSensor> m_sensors;
 	std::map<int, std::string> m_lightModels;
-
-// NEW: V2 sensors integration members
-//public:
-	// Option flag (bit) to enable Philips Hue v2 CLIP sensors support
-	// Set this bit in the 'Options' parameter when constructing CPhilipsHue
-	// Example: Options | HUE_USE_V2_SENSORS
-	//static const int HUE_USE_V2_SENSORS = 0x04;
-
 private:
 	bool m_use_v2_sensors = false;
 	std::unique_ptr<CPhilipsHueV2Sensors> m_v2sensors; // constructed when enabled
