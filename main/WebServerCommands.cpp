@@ -508,51 +508,12 @@ namespace http
 							int Type = atoi(sd[2].c_str());
 							int SubType = atoi(sd[3].c_str());
 							int used = atoi(sd[4].c_str());
-							if (used)
+							if (used && (IsLightOrSwitch(Type, SubType) || (Type == pTypeEvohome) || (Type == pTypeEvohomeRelay)))
 							{
-								switch (Type)
-								{
-								case pTypeLighting1:
-								case pTypeLighting2:
-								case pTypeLighting3:
-								case pTypeLighting4:
-								case pTypeLighting5:
-								case pTypeLighting6:
-								case pTypeFan:
-								case pTypeColorSwitch:
-								case pTypeSecurity1:
-								case pTypeSecurity2:
-								case pTypeEvohome:
-								case pTypeEvohomeRelay:
-								case pTypeCurtain:
-								case pTypeBlinds:
-								case pTypeRFY:
-								case pTypeChime:
-								case pTypeThermostat2:
-								case pTypeThermostat3:
-								case pTypeThermostat4:
-								case pTypeRemote:
-								case pTypeGeneralSwitch:
-								case pTypeHomeConfort:
-								case pTypeFS20:
-								case pTypeHunter:
-								case pTypeDDxxxx:
-								case pTypeHoneywell_AL:
-									root["result"][ii]["type"] = 0;
-									root["result"][ii]["idx"] = ID;
-									root["result"][ii]["Name"] = "[Light/Switch] " + Name;
-									ii++;
-									break;
-								case pTypeRadiator1:
-									if (SubType == sTypeSmartwaresSwitchRadiator)
-									{
-										root["result"][ii]["type"] = 0;
-										root["result"][ii]["idx"] = ID;
-										root["result"][ii]["Name"] = "[Light/Switch] " + Name;
-										ii++;
-									}
-									break;
-								}
+								root["result"][ii]["type"] = 0;
+								root["result"][ii]["idx"] = ID;
+								root["result"][ii]["Name"] = "[Light/Switch] " + Name;
+								ii++;
 							}
 						}
 					} // end light/switches
