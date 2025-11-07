@@ -2579,13 +2579,12 @@ namespace http
 					unsigned char switchtype = atoi(result[0][2].c_str());
 
 					int ii = 0;
-					if (
-						(dType == pTypeLighting1) || (dType == pTypeLighting2) || (dType == pTypeLighting3) || (dType == pTypeLighting4) || (dType == pTypeLighting5) ||
-						(dType == pTypeLighting6) || (dType == pTypeColorSwitch) || (dType == pTypeSecurity1) || (dType == pTypeSecurity2) || (dType == pTypeEvohome) ||
-						(dType == pTypeEvohomeRelay) || (dType == pTypeCurtain) || (dType == pTypeBlinds) || (dType == pTypeRFY) || (dType == pTypeChime) || (dType == pTypeThermostat2) ||
-						(dType == pTypeThermostat3) || (dType == pTypeThermostat4) || (dType == pTypeRemote) || (dType == pTypeGeneralSwitch) || (dType == pTypeHomeConfort) ||
-						(dType == pTypeFS20) || ((dType == pTypeRadiator1) && (dSubType == sTypeSmartwaresSwitchRadiator)) || (dType == pTypeDDxxxx) || (dType == pTypeHoneywell_AL)
-						)
+					if ((IsLightOrSwitch(dType, dSubType)
+					     || (dType == pTypeEvohome)
+					     || (dType == pTypeEvohomeRelay))
+					    && (dType != pTypeFan)
+					    && (dType != pTypeHunter)
+					    )
 					{
 						if (switchtype != STYPE_PushOff)
 						{
