@@ -408,116 +408,84 @@ namespace http
 							int used = atoi(sd[4].c_str());
 							_eSwitchType switchtype = (_eSwitchType)atoi(sd[5].c_str());
 							std::map<std::string, std::string> options = m_sql.BuildDeviceOptions(sd[6]);
-							bool bdoAdd = false;
-							switch (Type)
+							bool bdoAdd = (IsLightOrSwitch(Type, SubType)
+							               || (Type == pTypeEvohome)
+							               || (Type == pTypeEvohomeRelay));
+							if (bdoAdd && !used)
 							{
-							case pTypeLighting1:
-							case pTypeLighting2:
-							case pTypeLighting3:
-							case pTypeLighting4:
-							case pTypeLighting5:
-							case pTypeLighting6:
-							case pTypeFan:
-							case pTypeColorSwitch:
-							case pTypeSecurity1:
-							case pTypeSecurity2:
-							case pTypeEvohome:
-							case pTypeEvohomeRelay:
-							case pTypeCurtain:
-							case pTypeBlinds:
-							case pTypeRFY:
-							case pTypeChime:
-							case pTypeThermostat2:
-							case pTypeThermostat3:
-							case pTypeThermostat4:
-							case pTypeRemote:
-							case pTypeRadiator1:
-							case pTypeGeneralSwitch:
-							case pTypeHomeConfort:
-							case pTypeFS20:
-							case pTypeHunter:
-							case pTypeDDxxxx:
-							case pTypeHoneywell_AL:
-								bdoAdd = true;
-								if (!used)
-								{
-									bdoAdd = false;
-									std::vector<std::vector<std::string>> resultSD;
-									resultSD = m_sql.safe_query("SELECT ID FROM LightSubDevices WHERE (DeviceRowID=='%q')", sd[0].c_str());
-									if (!resultSD.empty())
-										bdoAdd = true;
-								}
-								if ((Type == pTypeRadiator1) && (SubType != sTypeSmartwaresSwitchRadiator))
-									bdoAdd = false;
-								if (bdoAdd)
-								{
-									int idx = atoi(ID.c_str());
-									if (!IsIdxForUser(&session, idx))
-										continue;
-									root["result"][ii]["idx"] = ID;
-									root["result"][ii]["Name"] = Name;
-									root["result"][ii]["Type"] = RFX_Type_Desc(Type, 1);
-									root["result"][ii]["SubType"] = RFX_Type_SubType_Desc(Type, SubType);
-									bool bIsDimmer = (
-										(switchtype == STYPE_Dimmer)
-										|| (switchtype == STYPE_BlindsPercentage)
-										|| (switchtype == STYPE_BlindsPercentageWithStop)
-										|| (switchtype == STYPE_Selector)
-										);
-									root["result"][ii]["IsDimmer"] = bIsDimmer;
+								bdoAdd = false;
+								std::vector<std::vector<std::string>> resultSD;
+								resultSD = m_sql.safe_query("SELECT ID FROM LightSubDevices WHERE (DeviceRowID=='%q')", sd[0].c_str());
+								if (!resultSD.empty())
+									bdoAdd = true;
+							}
+							if (bdoAdd)
+							{
+								int idx = atoi(ID.c_str());
+								if (!IsIdxForUser(&session, idx))
+									continue;
+								root["result"][ii]["idx"] = ID;
+								root["result"][ii]["Name"] = Name;
+								root["result"][ii]["Type"] = RFX_Type_Desc(Type, 1);
+								root["result"][ii]["SubType"] = RFX_Type_SubType_Desc(Type, SubType);
+								bool bIsDimmer = (
+									(switchtype == STYPE_Dimmer)
+									|| (switchtype == STYPE_BlindsPercentage)
+									|| (switchtype == STYPE_BlindsPercentageWithStop)
+									|| (switchtype == STYPE_Selector)
+									);
+								root["result"][ii]["IsDimmer"] = bIsDimmer;
 
-									std::string dimmerLevels = "none";
+								std::string dimmerLevels = "none";
 
-									if (bIsDimmer)
+								if (bIsDimmer)
+								{
+									std::stringstream ss;
+
+									if (switchtype == STYPE_Selector)
 									{
-										std::stringstream ss;
-
-										if (switchtype == STYPE_Selector)
+										std::map<std::string, std::string> selectorStatuses;
+										GetSelectorSwitchStatuses(options, selectorStatuses);
+										bool levelOffHidden = (options["LevelOffHidden"] == "true");
+										for (int i = 0; i < (int)selectorStatuses.size(); i++)
 										{
-											std::map<std::string, std::string> selectorStatuses;
-											GetSelectorSwitchStatuses(options, selectorStatuses);
-											bool levelOffHidden = (options["LevelOffHidden"] == "true");
-											for (int i = 0; i < (int)selectorStatuses.size(); i++)
+											if (levelOffHidden && (i == 0))
 											{
-												if (levelOffHidden && (i == 0))
-												{
-													continue;
-												}
-												if ((levelOffHidden && (i > 1)) || (i > 0))
-												{
-													ss << ",";
-												}
-												ss << i * 10;
+												continue;
 											}
-										}
-										else
-										{
-											int nValue = 0;
-											std::string sValue;
-											std::string lstatus;
-											int llevel = 0;
-											bool bHaveDimmer = false;
-											int maxDimLevel = 0;
-											bool bHaveGroupCmd = false;
-
-											GetLightStatus(Type, SubType, switchtype, nValue, sValue, lstatus, llevel, bHaveDimmer, maxDimLevel,
-												bHaveGroupCmd);
-
-											for (int i = 0; i <= maxDimLevel; i++)
+											if ((levelOffHidden && (i > 1)) || (i > 0))
 											{
-												if (i != 0)
-												{
-													ss << ",";
-												}
-												ss << (int)float((100.0F / float(maxDimLevel)) * i);
+												ss << ",";
 											}
+											ss << i * 10;
 										}
-										dimmerLevels = ss.str();
 									}
-									root["result"][ii]["DimmerLevels"] = dimmerLevels;
-									ii++;
+									else
+									{
+										int nValue = 0;
+										std::string sValue;
+										std::string lstatus;
+										int llevel = 0;
+										bool bHaveDimmer = false;
+										int maxDimLevel = 0;
+										bool bHaveGroupCmd = false;
+
+										GetLightStatus(Type, SubType, switchtype, nValue, sValue, lstatus, llevel, bHaveDimmer, maxDimLevel,
+											bHaveGroupCmd);
+
+										for (int i = 0; i <= maxDimLevel; i++)
+										{
+											if (i != 0)
+											{
+												ss << ",";
+											}
+											ss << (int)float((100.0F / float(maxDimLevel)) * i);
+										}
+									}
+									dimmerLevels = ss.str();
 								}
-								break;
+								root["result"][ii]["DimmerLevels"] = dimmerLevels;
+								ii++;
 							}
 						}
 					}
