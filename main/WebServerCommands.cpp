@@ -3323,19 +3323,14 @@ namespace http
 					unsigned char dType = atoi(result[0][0].c_str());
 					unsigned char dSubType = atoi(result[0][1].c_str());
 
-					if (
-						(dType != pTypeLighting1) && (dType != pTypeLighting2) && (dType != pTypeLighting3) && (dType != pTypeLighting4) && (dType != pTypeLighting5) &&
-						(dType != pTypeLighting6) && (dType != pTypeFan) && (dType != pTypeColorSwitch) && (dType != pTypeSecurity1) && (dType != pTypeSecurity2) &&
-						(dType != pTypeEvohome) && (dType != pTypeEvohomeRelay) && (dType != pTypeCurtain) && (dType != pTypeBlinds) && (dType != pTypeRFY) && (dType != pTypeChime) &&
-						(dType != pTypeThermostat2) && (dType != pTypeThermostat4) && (dType != pTypeThermostat4) && (dType != pTypeRemote) && (dType != pTypeGeneralSwitch) &&
-						(dType != pTypeHomeConfort) && (dType != pTypeFS20) && (!((dType == pTypeRadiator1) && (dSubType == sTypeSmartwaresSwitchRadiator))) &&
-						(!((dType == pTypeGeneral) && (dSubType == sTypeTextStatus))) && (!((dType == pTypeGeneral) && (dSubType == sTypeAlert))) && (dType != pTypeHunter) && (dType != pTypeDDxxxx) && (dType != pTypeHoneywell_AL)
-						)
+					if ((IsLightOrSwitch(dType, dSubType) || (dType == pTypeEvohome) || (dType == pTypeEvohomeRelay))
+					    || ((dType == pTypeGeneral) && ((dSubType == sTypeTextStatus) || (dSubType == sTypeAlert))))
+					{
+						result = m_sql.safe_query("DELETE FROM LightingLog WHERE (DeviceRowID=='%q')", idx.c_str());
+						root["status"] = "OK";
+					}
+					else
 						return false; // no light device! we should not be here!
-
-
-					result = m_sql.safe_query("DELETE FROM LightingLog WHERE (DeviceRowID=='%q')", idx.c_str());
-					root["status"] = "OK";
 					break;
 				}
 				case "clearscenelog"_sh:
