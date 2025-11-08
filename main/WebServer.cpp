@@ -1733,31 +1733,12 @@ namespace http
 
 					bool bHasTimers = false;
 
-					if (
-						(dType == pTypeLighting1)
-						|| (dType == pTypeLighting2)
-						|| (dType == pTypeLighting3)
-						|| (dType == pTypeLighting4)
-						|| (dType == pTypeLighting5)
-						|| (dType == pTypeLighting6)
-						|| (dType == pTypeFan)
-						|| (dType == pTypeColorSwitch)
-						|| (dType == pTypeCurtain)
-						|| (dType == pTypeBlinds)
-						|| (dType == pTypeRFY)
-						|| (dType == pTypeChime)
-						|| (dType == pTypeThermostat2)
-						|| (dType == pTypeThermostat3)
-						|| (dType == pTypeThermostat4)
-						|| (dType == pTypeRemote)
-						|| (dType == pTypeGeneralSwitch)
-						|| (dType == pTypeHomeConfort)
-						|| (dType == pTypeFS20)
-						|| ((dType == pTypeRadiator1) && (dSubType == sTypeSmartwaresSwitchRadiator))
-						|| ((dType == pTypeRego6XXValue) && (dSubType == sTypeRego6XXStatus))
-						|| (dType == pTypeHunter)
-						|| (dType == pTypeDDxxxx)
-						)
+					if ((IsLightOrSwitch(dType, dSubType)
+					     || ((dType == pTypeRego6XXValue) && (dSubType == sTypeRego6XXStatus)))
+					    && (dType != pTypeSecurity1)
+					    && (dType != pTypeSecurity2)
+					    && (dType != pTypeHoneywell_AL)
+					    )
 					{
 						// add light details
 						bHasTimers = m_sql.HasTimers(sd[0]);
