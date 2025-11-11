@@ -3214,9 +3214,9 @@ bool CSQLHelper::OpenDatabase()
 		if (dbversion < 171)
 		{
 			// Add columns for per-application refresh token lifetime and JWT signing
-			query("ALTER TABLE Applications ADD COLUMN [RefreshExpire] INTEGER DEFAULT 0, "
-			      "ADD COLUMN [SigningSecret] VARCHAR(100) DEFAULT '', "
-			      "ADD COLUMN [AcceptLegacyTokensUntil] INTEGER DEFAULT 0");
+			query("ALTER TABLE Applications ADD COLUMN [RefreshExpire] INTEGER DEFAULT 0");
+			query("ALTER TABLE Applications ADD COLUMN [SigningSecret] VARCHAR(100) DEFAULT ''");
+			query("ALTER TABLE Applications ADD COLUMN [AcceptLegacyTokensUntil] INTEGER DEFAULT 0");
 
 			// Accept any existing auth tokens for the hour it takes them to expire,
 			// after which they'll need to have been refreshed anyway.
