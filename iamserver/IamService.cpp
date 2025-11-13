@@ -97,7 +97,6 @@ namespace http
 								{	// POST request, so maybe we have the data from the Login form
 									std::string sConsent = request::findValue(&req, "consent");
 									std::string sPWD = request::findValue(&req, "psw");
-									std::string sTOTP = request::findValue(&req, "totp");
 									Username = request::findValue(&req, "uname");
 									iUser = FindUser(Username.c_str());
 									bAuthenticated = (iUser != -1 ? (m_users[iUser].Password == GenerateMD5Hash(sPWD)) : false);
@@ -111,12 +110,19 @@ namespace http
 											return;
 										}
 										error = "User credentials do not match!";
+										goto exitfunc;
 									}
 									else
 									{
 										// User/pass matches.. now check TOTP if required
 										if (!m_users[iUser].Mfatoken.empty())
 										{
+											std::string sTOTP = request::findValue(&req, "totp");
+											if (sTOTP.empty())
+											{
+												error = "Enter the One-Time Passcode!";
+												goto exitfunc;
+											}
 											std::string sTotpKey = "";
 											bAuthenticated = false;
 											if(base32_decode(m_users[iUser].Mfatoken, sTotpKey))
@@ -135,11 +141,13 @@ namespace http
 														return;
 													}
 													error = "TOTP Verification for a user has failed!";
+													goto exitfunc;
 												}
 											}
 											else
 											{
 												error = "TOTP key is not valid base32 encoded!";
+												goto exitfunc;
 											}
 										}
 									}
@@ -196,7 +204,7 @@ namespace http
 				error = "missing or wrong redirect_uri";
 				_log.Debug(DEBUG_AUTH, "OAuth2 Auth Code: Wrong/Missing redirect_uri (%s)!", redirect_uri.c_str());
 			}
-
+		exitfunc:
 			// Redirect the User back to origin using the redirect_uri
 			std::stringstream result;
 			if(redirect_uri.find("?") != std::string::npos)
