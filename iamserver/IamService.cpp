@@ -19,6 +19,8 @@
 #include "../main/WebServer.h"
 #include "../webserver/Base64.h"
 
+extern std::string szWWWFolder;
+
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
@@ -598,9 +600,19 @@ namespace http
         {
 			std::string sTOTP = "";	// required
 
+			std::string full_path = szWWWFolder + "/views/iam_auth.html";
+			std::ifstream is;
+			is.open(full_path.c_str(), std::ios::in | std::ios::binary);
+			if (!is.is_open())
+			{
+				rep = reply::stock_reply(reply::not_found);
+				return;
+			}
+
 			rep = reply::stock_reply(reply::ok);
 
-            reply::set_content(&rep, m_iamsettings.getAuthPageContent());
+			std::string szContent((std::istreambuf_iterator<char>(is)), (std::istreambuf_iterator<char>()));
+			reply::set_content(&rep, szContent);
 
 			stdreplace(rep.content, "###REPLACE_APP###", sApp);
 			stdreplace(rep.content, "###REPLACE_ERROR###", sError);

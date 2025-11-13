@@ -510,6 +510,9 @@
     <Filter Include="Devices\ZWave\ControlPanel">
       <UniqueIdentifier>{dd597942-82d6-4aaf-aba7-da17ce1f9392}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Webserver\IamService">
+      <UniqueIdentifier>{81a998bf-9440-48ed-acad-561718cb579e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\CMakeLists.txt">
@@ -2213,9 +2216,6 @@
     <ClInclude Include="..\hardware\VisualCrossing.h">
       <Filter>Devices\VisualCrossing</Filter>
     </ClInclude>
-    <ClInclude Include="..\iamserver\iam_settings.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\hardware\AlfenEve.h">
       <Filter>Devices\AlfenEve</Filter>
     </ClInclude>
@@ -2260,6 +2260,9 @@
     </ClInclude>
     <ClInclude Include="..\mcpserver\McpService.hpp">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\iamserver\iam_settings.hpp">
+      <Filter>Webserver\IamService</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -2348,9 +2351,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\main\WebServerHandleGraph.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\iamserver\IamService.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="WindowsHelper.cpp">
@@ -3057,6 +3057,9 @@
     </ClCompile>
     <ClCompile Include="..\mcpserver\McpService.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\iamserver\IamService.cpp">
+      <Filter>Webserver\IamService</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
