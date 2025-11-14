@@ -2,6 +2,7 @@
 #include "WebServer.h"
 #include "mainworker.h"
 #include "SQLHelper.h"
+#include "json_helper.h"
 #include "Logger.h"
 #include "Helper.h"
 #include "RFXNames.h"
@@ -363,8 +364,7 @@ static Json::Value CreateFriendlyNamesWithAsset(const std::string& assetId, cons
 void CWebServer::Alexa_HandleDiscovery(WebEmSession& session, const request& req, Json::Value& root)
 {
 	Json::Value request_json;
-	Json::Reader reader;
-	if (!reader.parse(req.content, request_json))
+	if (!ParseJSon(req.content, request_json))
 	{
 		root["event"]["header"]["namespace"] = "Alexa";
 		CreateErrorResponse(root, request_json, "INVALID_DIRECTIVE", "Invalid JSON");
@@ -1035,8 +1035,7 @@ void CWebServer::Alexa_HandleDiscovery(WebEmSession& session, const request& req
 void CWebServer::Alexa_HandleAcceptGrant(WebEmSession& session, const request& req, Json::Value& root)
 {
 	Json::Value request_json;
-	Json::Reader reader;
-	if (!reader.parse(req.content, request_json))
+	if (!ParseJSon(req.content, request_json))
 	{
 		root["event"]["header"]["namespace"] = "Alexa";
 		CreateErrorResponse(root, request_json, "INVALID_DIRECTIVE", "Invalid JSON");
@@ -1077,7 +1076,7 @@ void CWebServer::Alexa_HandleAcceptGrant(WebEmSession& session, const request& r
 			{
 				// Parse token response
 				Json::Value token_response;
-				if (reader.parse(response_data, token_response))
+				if (!ParseJSon(response_data, token_response))
 				{
 					std::string access_token = token_response["access_token"].asString();
 					std::string refresh_token = token_response["refresh_token"].asString();
@@ -1547,8 +1546,7 @@ static void Alexa_HandleControl_ColorTemperatureController(WebEmSession& session
 		}
 
 		Json::Value color_json;
-		Json::Reader reader;
-		if (!reader.parse(result[0][0], color_json))
+		if (!ParseJSon(result[0][0], color_json))
 		{
 			CreateErrorResponse(root, request_json, "INTERNAL_ERROR", "Failed to parse color data");
 			return;
@@ -1935,8 +1933,7 @@ static void Alexa_HandleControl_ReportState(WebEmSession& session, const Json::V
 					if (!color_result.empty() && !color_result[0][0].empty())
 					{
 						Json::Value color_json;
-						Json::Reader reader;
-						if (reader.parse(color_result[0][0], color_json))
+						if (!ParseJSon(color_result[0][0], color_json))
 						{
 							int r = color_json.get("r", 0).asInt();
 							int g = color_json.get("g", 0).asInt();
@@ -2229,8 +2226,7 @@ bool CWebServer::CheckDeviceAccess(const WebEmSession& session, const std::vecto
 void CWebServer::Alexa_HandleControl(WebEmSession& session, const request& req, Json::Value& root)
 {
 	Json::Value request_json;
-	Json::Reader reader;
-	if (!reader.parse(req.content, request_json))
+	if (!ParseJSon(req.content, request_json))
 	{
 		root["event"]["header"]["namespace"] = "Alexa";
 		CreateErrorResponse(root, request_json, "INVALID_DIRECTIVE", "Invalid JSON");
@@ -2342,8 +2338,7 @@ void CWebServer::GetAlexaPage(WebEmSession& session, const request& req, reply& 
 
 	// Parse request body for Alexa directive
 	Json::Value request_json;
-	Json::Reader reader;
-	if (!reader.parse(req.content, request_json))
+	if (!ParseJSon(req.content, request_json))
 	{
 		rep.status = http::server::reply::bad_request;
 		return;
