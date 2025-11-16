@@ -824,6 +824,7 @@ void MQTTAutoDiscover::on_auto_discovery_message(const struct mosquitto_message*
 
 		pDevice->identifiers = device_identifiers;
 
+		// This is the name of the *device* to which this sensor happens to be attached
 		std::string dev_name("");
 		if (!root["device"]["name"].empty())
 		{
@@ -834,31 +835,40 @@ void MQTTAutoDiscover::on_auto_discovery_message(const struct mosquitto_message*
 			dev_name = root["dev"]["name"].asString();
 		}
 
+		// Construct the Domoticz sensor name from the JSON device and entity names.
+		std::string sensor_name = root["name"].asString();
 		if (!dev_name.empty())
 		{
-			if (root["name"].empty())
-			{
-				root["name"] = (dev_name.empty()) ? sensor_unique_id : dev_name;
+			// We have a device name. If the sensor's own name is empty, looks like
+			// a hex string, or matches the device name, then just use the device name.
+			if (sensor_name.empty() || sensor_name.find("0x") != std::string::npos || sensor_name == dev_name) {
+				sensor_name = dev_name;
+			} else {
+				// The sensor name looks good, so use "device (sensor name)".
+				sensor_name = dev_name + " (" + sensor_name + ")";
 			}
-			std::string subname = root["name"].asString();
-			if (subname.find("0x") != 0)
-			{
-				pDevice->name = dev_name;
-				if (dev_name != subname)
-					pDevice->name += " (" + subname + ")";
-			}
-			else
-			{
-				pDevice->name = dev_name;
-			}
-		}
-		else if (!root["name"].empty())
+                }
+		else
 		{
-			pDevice->name = root["name"].asString();
+			// We didn't have a device name. Try the sensor name. And if even *that*
+			// doesn't exist, fall back to the unique_id as the last resort.
+			if (sensor_name.empty()) {
+				sensor_name = sensor_unique_id;
+			}
 		}
 
+
+		// This is the name we store in the pDevice structure for the *device*, not
+		// just this sensor. The same device information can be sent in the JSON of
+		// multiple sensors, and the pDevice we store should only contain information
+		// about the device itself, nothing from any of the sensors that reference it.
 		if (pDevice->name.empty())
-			pDevice->name = pDevice->identifiers;
+		{
+			if (dev_name.empty())
+				pDevice->name = pDevice->identifiers;
+			else
+				pDevice->name = dev_name;
+		}
 
 		if (!root["device"]["sw_version"].empty())
 			pDevice->sw_version = root["device"]["sw_version"].asString();
@@ -941,7 +951,7 @@ void MQTTAutoDiscover::on_auto_discovery_message(const struct mosquitto_message*
 		pSensor->config = qMessage;
 		pSensor->component_type = component;
 		pSensor->device_identifiers = device_identifiers;
-		pSensor->name = pDevice->name;
+		pSensor->name = sensor_name;
 
 		if (!root["enabled_by_default"].empty())
 			pSensor->bEnabled_by_default = root["enabled_by_default"].asBool();
