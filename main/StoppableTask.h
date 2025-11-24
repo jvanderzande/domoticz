@@ -3,6 +3,8 @@
 #ifndef _STOPPABLETASK_BB60A0DF_BADC_4384_8978_B7403659030F
 #define _STOPPABLETASK_BB60A0DF_BADC_4384_8978_B7403659030F
 
+#include <chrono>
+
 /*
  * StoppableTask provides a mechanism for worker threads to efficiently wait
  * for stop requests alongside other events.
@@ -53,8 +55,28 @@ public:
 	void RequestStop();
 	void RequestStart();
 	int GetStopFd();
+
+	// Select helpers
+	void ClearSelectFds();
+	void SetSelectFd(int fd, bool wantRead, bool wantWrite, bool wantExcept);
+	void SelectTimeout(int seconds, int microseconds = 0);
+	template<typename Rep, typename Period>
+	void SelectTimeout(const std::chrono::duration<Rep, Period>& duration)
+	{
+		auto us = std::chrono::duration_cast<std::chrono::microseconds>(duration);
+		SelectTimeout(us.count() / 1000000, us.count() % 1000000);
+	}
+	int DoSelect();
+	bool FdIsReadable(int fd) const { return FD_ISSET(fd, &m_rfds); }
+	bool FdIsWritable(int fd) const { return FD_ISSET(fd, &m_wfds); }
+	bool FdIsExcept(int fd) const { return FD_ISSET(fd, &m_efds); }
+	bool FdStopIsSet() const { return m_stopfd[0] != INVALID_SOCKET && FD_ISSET(m_stopfd[0], &m_rfds); }
+
 private:
 	SOCKET m_stopfd[2];
+	fd_set m_rfds, m_wfds, m_efds;
+	int m_nfds;
+	struct timeval m_timeout;
 };
 
 #endif //_STOPPABLETASK_BB60A0DF_BADC_4384_8978_B7403659030F

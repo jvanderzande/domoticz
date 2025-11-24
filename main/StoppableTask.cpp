@@ -240,3 +240,62 @@ int StoppableTask::GetStopFd()
 	return (m_stopfd[0] == INVALID_SOCKET) ? -1 : (int)m_stopfd[0];
 }
 
+void StoppableTask::ClearSelectFds()
+{
+	FD_ZERO(&m_rfds);
+	FD_ZERO(&m_wfds);
+	FD_ZERO(&m_efds);
+	m_nfds = 0;
+	m_timeout.tv_sec = 0;
+	m_timeout.tv_usec = 0;
+
+	// Always include stop_fd in read set
+	int stop_fd = GetStopFd();
+	if (stop_fd >= 0)
+	{
+		FD_SET(stop_fd, &m_rfds);
+		m_nfds = stop_fd + 1;
+	}
+}
+
+void StoppableTask::SetSelectFd(int fd, bool wantRead, bool wantWrite, bool wantExcept)
+{
+	if (fd < 0)
+		return;
+
+	if (wantRead)
+		FD_SET(fd, &m_rfds);
+	if (wantWrite)
+		FD_SET(fd, &m_wfds);
+	if (wantExcept)
+		FD_SET(fd, &m_efds);
+
+	if (fd >= m_nfds)
+		m_nfds = fd + 1;
+}
+
+void StoppableTask::SelectTimeout(int seconds, int microseconds)
+{
+	// Set timeout to minimum of current and requested
+	// Compare seconds first, then microseconds if seconds are equal
+	if (m_timeout.tv_sec == 0 && m_timeout.tv_usec == 0)
+	{
+		// No timeout set yet, use requested
+		m_timeout.tv_sec = seconds;
+		m_timeout.tv_usec = microseconds;
+	}
+	else if (seconds < m_timeout.tv_sec ||
+	         (seconds == m_timeout.tv_sec && microseconds < m_timeout.tv_usec))
+	{
+		// Requested timeout is shorter
+		m_timeout.tv_sec = seconds;
+		m_timeout.tv_usec = microseconds;
+	}
+}
+
+int StoppableTask::DoSelect()
+{
+	return select(m_nfds, &m_rfds, &m_wfds, &m_efds, &m_timeout);
+}
+
+
