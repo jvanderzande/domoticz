@@ -2206,12 +2206,18 @@ bool MQTTAutoDiscover::GuessSensorTypeValue(_tMQTTASensor* pSensor, uint8_t& dev
 			sValue = std_format("%lu", static_cast<int>(counter * 1000.0));
 		}
 	}
-	else if (szUnit == "l/hr")
+	else if (
+		(szUnit == "l/hr")
+		|| (szUnit == "l/min")
+		)
 	{
-		//our sensor is in Liters / minute
 		devType = pTypeGeneral;
 		subType = sTypeWaterflow;
-		sValue = std_format("%.2f", static_cast<float>(atof(pSensor->last_value.c_str())) / 60.0F);
+
+		float fDivision = 1; //our sensor is in Liters / minute
+		if (szUnit == "l/hr")
+			fDivision = 60.0F;
+		sValue = std_format("%.2f", static_cast<float>(atof(pSensor->last_value.c_str())) / fDivision);
 	}
 	else if (
 		(szUnit == "db")
