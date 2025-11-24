@@ -678,8 +678,9 @@ void MQTT::Do_Work()
 
 	set_callbacks();
 
-	while (!IsStopRequested(0))
+	while (true)
 	{
+		ClearSelectFds();
 		time_t now = mytime(nullptr);
 
 		// Handle periodic tasks
@@ -710,54 +711,34 @@ void MQTT::Do_Work()
 			}
 		}
 
-		// Get mosquitto socket
+		// Setup select
 		int mosq_fd = socket();
-
-		// Setup select with both mosquitto socket and stop fd
-		fd_set rfds, wfds;
-		FD_ZERO(&rfds);
-		FD_ZERO(&wfds);
-
-		int stop_fd = GetStopFd();
-		FD_SET(stop_fd, &rfds);
-		int maxfd = stop_fd;
-
 		if (mosq_fd >= 0)
 		{
-			FD_SET(mosq_fd, &rfds);
-			if (want_write())
-				FD_SET(mosq_fd, &wfds);
-			if (mosq_fd > maxfd)
-				maxfd = mosq_fd;
+			SetSelectFd(mosq_fd, true, want_write(), false);
 		}
+		SelectTimeout(std::chrono::seconds(1));
 
-		// Wait up to 1 second for activity
-		struct timeval tv;
-		tv.tv_sec = 1;
-		tv.tv_usec = 0;
-
-		int ret = select(maxfd + 1, &rfds, &wfds, nullptr, &tv);
+		int ret = DoSelect();
+		if (FdStopIsSet())
+			break;
 
 		if (ret > 0)
 		{
-			// Check for stop signal
-			if (FD_ISSET(stop_fd, &rfds))
-				break;
-
 			// Handle mosquitto I/O
 			if (mosq_fd >= 0)
 			{
 				try
 				{
-					if (FD_ISSET(mosq_fd, &rfds))
+					if (FdIsReadable(mosq_fd))
 						loop_read();
-					if (FD_ISSET(mosq_fd, &wfds))
+					if (FdIsWritable(mosq_fd))
 						loop_write();
 					loop_misc();
 				}
 				catch (const std::exception &)
 				{
-					if (!IsStopRequested(0))
+					if (!IsStopRequested())
 					{
 						if (!m_bDoReconnect)
 							reconnect();
