@@ -123,6 +123,11 @@ bool MQTT::StopHardware()
 		m_thread->join();
 		m_thread.reset();
 	}
+	if (m_mqtt_thread)
+	{
+		m_mqtt_thread->join();
+		m_mqtt_thread.reset();
+	}
 	m_IsConnected = false;
 	return true;
 }
@@ -194,7 +199,7 @@ void MQTT::on_message(const struct mosquitto_message *message)
 	std::string qMessage = std::string((char*)message->payload, (char*)message->payload + message->payloadlen);
 
 	Debug(DEBUG_HARDWARE, "Topic: %s, Message: %s", topic.c_str(), qMessage.c_str());
-
+	
 	if (qMessage.empty())
 		return;
 
@@ -579,6 +584,7 @@ void MQTT::on_disconnect(int rc)
 	{
 		if (!IsStopRequested(0))
 		{
+			disconnect();
 			if (rc == 5)
 			{
 				Log(LOG_ERROR, "Disconnected, Invalid Username/Password (rc=%d)", rc);
@@ -596,6 +602,11 @@ void MQTT::on_disconnect(int rc)
 //called when hardware is stopped
 void MQTT::on_going_down()
 {
+	if (isConnected())
+	{
+		m_IsConnected = false;
+		disconnect();
+	}
 }
 
 bool MQTT::ReconnectNow()
@@ -672,78 +683,39 @@ bool MQTT::ConnectIntEx()
 void MQTT::Do_Work()
 {
 	bool bFirstTime = true;
-	time_t last_heartbeat = mytime(nullptr);
-	time_t last_reconnect = mytime(nullptr);
-	time_t last_ping = mytime(nullptr);
+	int sec_counter = 0;
 
 	set_callbacks();
 
-	while (true)
-	{
-		ClearSelectFds();
-		time_t now = mytime(nullptr);
+	time_t last_time = time(nullptr);
 
-		// Handle periodic tasks
+	while (!IsStopRequested(1000))
+	{
+		sec_counter++;
+
+		if (sec_counter % 12 == 0)
+		{
+			m_LastHeartbeat = mytime(nullptr);
+		}
+
 		if (bFirstTime)
 		{
 			bFirstTime = false;
 			ConnectInt();
-			last_heartbeat = last_reconnect = last_ping = now;
+
+			m_mqtt_thread = std::make_shared<std::thread>([this] { Do_MQTT_Work(); });
+			SetThreadNameInt(m_mqtt_thread->native_handle());
 		}
 		else
 		{
-			if (now - last_heartbeat >= 12)
+			if (sec_counter % 30 == 0)
 			{
-				m_LastHeartbeat = now;
-				last_heartbeat = now;
+				if (m_bDoReconnect)
+					ConnectIntEx();
 			}
-
-			if (m_bDoReconnect && now - last_reconnect >= 30)
-			{
-				ConnectIntEx();
-				last_reconnect = now;
-			}
-
-			if (isConnected() && now - last_ping >= 10)
+			if (isConnected() && sec_counter % 10 == 0)
 			{
 				SendHeartbeat();
-				last_ping = now;
-			}
-		}
-
-		// Setup select
-		int mosq_fd = socket();
-		if (mosq_fd >= 0)
-		{
-			SetSelectFd(mosq_fd, true, want_write(), false);
-		}
-		SelectTimeout(std::chrono::seconds(1));
-
-		int ret = DoSelect();
-		if (FdStopIsSet())
-			break;
-
-		if (ret > 0)
-		{
-			// Handle mosquitto I/O
-			if (mosq_fd >= 0)
-			{
-				try
-				{
-					if (FdIsReadable(mosq_fd))
-						loop_read();
-					if (FdIsWritable(mosq_fd))
-						loop_write();
-					loop_misc();
-				}
-				catch (const std::exception &)
-				{
-					if (!IsStopRequested())
-					{
-						if (!m_bDoReconnect)
-							reconnect();
-					}
-				}
 			}
 		}
 	}
@@ -758,6 +730,27 @@ void MQTT::Do_Work()
 		m_sSwitchSceneConnection.disconnect();
 
 	Log(LOG_STATUS, "Worker stopped...");
+}
+
+void MQTT::Do_MQTT_Work()
+{
+	while (!IsStopRequested(5))
+	{
+		if (!m_bDoReconnect)
+		{
+			int rc = loop_forever();
+			if (rc)
+			{
+				if (rc != MOSQ_ERR_NO_CONN)
+				{
+					if (!IsStopRequested(0))
+					{
+						m_bDoReconnect = true;
+					}
+				}
+			}
+		}
+	}
 }
 
 void MQTT::SendHeartbeat()
