@@ -3830,7 +3830,14 @@ namespace http
 
 			queryString.append(", ");
 			if (!isCounter)
-				queryString.append("AVG(" + dfield + ")");
+			{
+				if (dfield.find("_Min") != std::string::npos)
+					queryString.append("MIN(" + dfield + ")");
+				else if (dfield.find("_Max") != std::string::npos)
+					queryString.append("MAX(" + dfield + ")");
+				else
+					queryString.append("AVG(" + dfield + ")");
+			}
 			else
 				queryString.append("SUM(" + dfield + ")");
 			queryString.append("/" + std::to_string(divider));
