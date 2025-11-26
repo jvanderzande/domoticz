@@ -3831,6 +3831,7 @@ namespace http
 			queryString.append(", ");
 			if (!isCounter)
 			{
+				//probably should add an additional option to select AVG/MIN/MAX
 				if (dfield.find("_Min") != std::string::npos)
 					queryString.append("MIN(" + dfield + ")");
 				else if (dfield.find("_Max") != std::string::npos)
