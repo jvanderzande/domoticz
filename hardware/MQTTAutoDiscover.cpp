@@ -179,7 +179,11 @@ void MQTTAutoDiscover::on_connect(int rc)
 
 void MQTTAutoDiscover::on_going_down()
 {
-	SendMessageEx(m_TopicDiscoveryPrefix + std::string("/status"), "offline", 0, m_bRetain);
+	if (isConnected())
+	{
+		SendMessageEx(m_TopicDiscoveryPrefix + std::string("/status"), "offline", 0, m_bRetain);
+	}
+	MQTT::on_going_down();
 }
 
 void MQTTAutoDiscover::on_disconnect(int rc)
