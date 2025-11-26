@@ -745,11 +745,11 @@ bool CScheduler::AdjustScheduleItem(tScheduleItem* pItem, bool bForceAddDay)
 		int daynum = (int)log2(pItem->Days) + 1;
 		if (daynum == 7) daynum = 0;
 
-		rtime = getNthWeekdayOfCurrentMonth(daynum, (pItem->Occurence != 5) ? pItem->Occurence : -1, ltime.tm_hour, ltime.tm_min, false);
+		rtime = getNthWeekdayOfCurrentMonth(daynum, (pItem->Occurence != 5) ? pItem->Occurence : -1, pItem->startHour, pItem->startMin, false);
 
 		if (rtime < atime) //past date/time
 		{
-			rtime = getNthWeekdayOfCurrentMonth(daynum, (pItem->Occurence != 5) ? pItem->Occurence : -1, ltime.tm_hour, ltime.tm_min, true);
+			rtime = getNthWeekdayOfCurrentMonth(daynum, (pItem->Occurence != 5) ? pItem->Occurence : -1, pItem->startHour, pItem->startMin, true);
 		}
 
 		rtime += roffset * 60; // add randomness
