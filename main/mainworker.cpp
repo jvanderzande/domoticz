@@ -11619,43 +11619,34 @@ MainWorker::eSwitchLightReturnCode MainWorker::SwitchLightInt(const std::vector<
 		level = (switchtype != STYPE_Selector) ? -1 : 0;
 
 	//when level is invalid or command is "On", replace level with "LastLevel"
-	//but not for MQTT Fans
-	bool bIsMQTTFan = false;
-	if (pHardware->HwdType == HTYPE_MQTTAutoDiscovery)
+	if (switchcmd == "On" || level < 0)
 	{
-		bIsMQTTFan = ((MQTTAutoDiscover*)m_hardwaredevices[hindex])->IsFanType(sd[1]);
-	}
-	if (!bIsMQTTFan)
-	{
-		if (switchcmd == "On" || level < 0)
+		//Get LastLevel
+		std::vector<std::vector<std::string> > result;
+		result = m_sql.safe_query(
+			"SELECT LastLevel FROM DeviceStatus WHERE (HardwareID=%d AND DeviceID='%q' AND Unit=%d AND Type=%d AND SubType=%d)", HardwareID, sd[1].c_str(), Unit, int(dType), int(dSubType));
+		if (result.size() == 1)
 		{
-			//Get LastLevel
-			std::vector<std::vector<std::string> > result;
-			result = m_sql.safe_query(
-				"SELECT LastLevel FROM DeviceStatus WHERE (HardwareID=%d AND DeviceID='%q' AND Unit=%d AND Type=%d AND SubType=%d)", HardwareID, sd[1].c_str(), Unit, int(dType), int(dSubType));
-			if (result.size() == 1)
+			level = atoi(result[0][0].c_str());
+			if (
+				(switchcmd == "On")
+				&& (level > 0)
+				&& (switchtype == STYPE_Dimmer)
+				)
 			{
-				level = atoi(result[0][0].c_str());
-				if (
-					(switchcmd == "On")
-					&& (level > 0)
-					&& (switchtype == STYPE_Dimmer)
-					)
-				{
-					switchcmd = "Set Level";
-				}
+				switchcmd = "Set Level";
 			}
-
-			//level here is from 0-100, convert it to device range
-			if ((maxDimLevel != 0) && (switchtype != STYPE_Selector))
-			{
-				float fLevel = (maxDimLevel / 100.0F) * level;
-				if (fLevel > 100)
-					fLevel = 100;
-				level = ground(fLevel);
-			}
-			_log.Debug(DEBUG_NORM, "MAIN SwitchLightInt : switchcmd==\"On\" || level < 0, new level:%d", level);
 		}
+
+		//level here is from 0-100, convert it to device range
+		if ((maxDimLevel != 0) && (switchtype != STYPE_Selector))
+		{
+			float fLevel = (maxDimLevel / 100.0F) * level;
+			if (fLevel > 100)
+				fLevel = 100;
+			level = ground(fLevel);
+		}
+		_log.Debug(DEBUG_NORM, "MAIN SwitchLightInt : switchcmd==\"On\" || level < 0, new level:%d", level);
 	}
 	level = std::max(level, 0);
 

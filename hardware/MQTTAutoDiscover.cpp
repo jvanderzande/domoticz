@@ -5107,14 +5107,6 @@ void MQTTAutoDiscover::InsertUpdateSwitch(_tMQTTASensor* pSensor)
 		m_sql.UpdateDeviceValue("LastLevel", level, szIdx);
 }
 
-bool MQTTAutoDiscover::IsFanType(const std::string& DeviceID)
-{
-	if (m_discovered_sensors.find(DeviceID) == m_discovered_sensors.end())
-		return false;
-	_tMQTTASensor* pSensor = &m_discovered_sensors[DeviceID];
-	return (pSensor->component_type == "fan");
-}
-
 bool MQTTAutoDiscover::SendSwitchCommand(const std::string& DeviceID, const std::string& DeviceName, int Unit, std::string command, int level, _tColor color, const std::string& user)
 {
 	if (m_discovered_sensors.find(DeviceID) == m_discovered_sensors.end())
@@ -5298,15 +5290,15 @@ bool MQTTAutoDiscover::SendSwitchCommand(const std::string& DeviceID, const std:
 			{
 				root["brightness"] = slevel;
 
-				//This seems to cause issues for Tuya 2 gang dimmers... not sure why
-				//not sure if this is needed for other devices
-				if (
-					(m_discovered_devices[pSensor->device_identifiers].manufacturer == "TuYa")
-					|| (m_discovered_devices[pSensor->device_identifiers].manufacturer == "Tuya")
-					|| (m_discovered_devices[pSensor->device_identifiers].manufacturer == "AVATTO")
-					)
+				// Only include state if the device supports ON/OFF payloads
+				// (some devices handle brightness without needing explicit ON/OFF commands)
+				if (!pSensor->payload_on.empty() && (slevel > 0))
 				{
-					root["state"] = (slevel > 0) ? pSensor->payload_on : pSensor->payload_off;
+					root["state"] = pSensor->payload_on;
+				}
+				else if (!pSensor->payload_off.empty() && (slevel == 0))
+				{
+					root["state"] = pSensor->payload_off;
 				}
 			}
 			else
@@ -5663,6 +5655,18 @@ bool MQTTAutoDiscover::SendSwitchCommand(const std::string& DeviceID, const std:
 				int slevel = (int)round(elevel);
 				szSendValue = std::to_string(slevel);
 				command_topic = pSensor->percentage_command_topic;
+				// For fans with separate state and percentage topics, send ON if currently off, and OFF when it is set to 0
+				if (!pSensor->command_topic.empty())
+				{
+					if (pSensor->nValue == gswitch_sOff && level > 0)
+					{
+						SendMessage(pSensor->command_topic, pSensor->payload_on);
+					}
+					else if (pSensor->nValue == gswitch_sOn && level < 1)
+					{
+						SendMessage(pSensor->command_topic, pSensor->payload_off);
+					}
+				}
 			}
 		}
 		else if ((!pSensor->preset_modes.empty()) && (Unit == FAN_PRESET_UNIT))
