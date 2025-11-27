@@ -1241,6 +1241,20 @@ void MQTTAutoDiscover::on_auto_discovery_message(const struct mosquitto_message*
 			pSensor->percentage_value_template = root["pct_val_tpl"].asString();
 		CleanValueTemplate(pSensor->percentage_value_template);
 
+		if (!root["speed_range_max"].empty())
+			pSensor->speed_range_max = root["speed_range_max"].asInt();
+		if (!root["spd_rng_max"].empty())
+			pSensor->speed_range_max = root["spd_rng_max"].asInt();
+		if (!root["speed_range_min"].empty())
+			pSensor->speed_range_min = root["speed_range_min"].asInt();
+		if (!root["spd_rng_min"].empty())
+			pSensor->speed_range_min = root["spd_rng_min"].asInt();
+		if (pSensor->speed_range_max > 100)
+			pSensor->speed_range_max = 100;
+		if (pSensor->speed_range_min < 1)
+			pSensor->speed_range_min = 1;
+		pSensor->speed_range_min--; //include off
+
 		if (!root["brightness"].empty())
 		{
 			pSensor->bBrightness = (root["brightness"].asString() == "true");
@@ -4977,7 +4991,10 @@ void MQTTAutoDiscover::InsertUpdateSwitch(_tMQTTASensor* pSensor)
 						szSwitchCmd = "off";
 					else {
 						szSwitchCmd = "Set Level";
-						if (pSensor->bHave_brightness_scale)
+
+						if (pSensor->component_type == "fan")
+							level = (int)round(level * (100.0 / (pSensor->speed_range_max - pSensor->speed_range_min)));
+						else if (pSensor->bHave_brightness_scale)
 							level = (int)round((100.0 / pSensor->brightness_scale) * level);
 						else if (!pSensor->percentage_value_template.empty())
 						{
@@ -5627,14 +5644,15 @@ bool MQTTAutoDiscover::SendSwitchCommand(const std::string& DeviceID, const std:
 		if (Unit == 1)
 		{
 			if (command == "On")
-				szSendValue = "50";
+				szSendValue = pSensor->payload_on;
 			else if (command == "Off")
-				szSendValue = "0";
+				szSendValue = pSensor->payload_off;
 			else if (command == "Set Level")
 			{
 				if (level > 100)
 					level = 100;
-				int slevel = (int)round((255 / 100.0F) * level);
+				double elevel = (level / 100.0) * (pSensor->speed_range_max - pSensor->speed_range_min);
+				int slevel = (int)round(elevel);
 				szSendValue = std::to_string(slevel);
 				command_topic = pSensor->percentage_command_topic;
 			}
