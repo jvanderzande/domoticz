@@ -5107,6 +5107,14 @@ void MQTTAutoDiscover::InsertUpdateSwitch(_tMQTTASensor* pSensor)
 		m_sql.UpdateDeviceValue("LastLevel", level, szIdx);
 }
 
+bool MQTTAutoDiscover::IsFanType(const std::string& DeviceID)
+{
+	if (m_discovered_sensors.find(DeviceID) == m_discovered_sensors.end())
+		return false;
+	_tMQTTASensor* pSensor = &m_discovered_sensors[DeviceID];
+	return (pSensor->component_type == "fan");
+}
+
 bool MQTTAutoDiscover::SendSwitchCommand(const std::string& DeviceID, const std::string& DeviceName, int Unit, std::string command, int level, _tColor color, const std::string& user)
 {
 	if (m_discovered_sensors.find(DeviceID) == m_discovered_sensors.end())

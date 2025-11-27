@@ -203,6 +203,7 @@ public:
 
 	uint64_t UpdateValueInt(int HardwareID, const char* ID, unsigned char unit, unsigned char devType, unsigned char subType, unsigned char signallevel, unsigned char batterylevel, int nValue,
 		const char* sValue, std::string& devname, bool bUseOnOffAction = true, const std::string& user = "");
+	bool IsFanType(const std::string& DeviceID);
 	bool SendSwitchCommand(const std::string& DeviceID, const std::string& DeviceName, int Unit, std::string command, int level, _tColor color, const std::string& user);
 	bool SendIRCommand(const std::string& DeviceID, const std::string& DeviceName, int Unit, std::string command, int level, _tColor color, const std::string& user);
 	bool SetSetpoint(const std::string& DeviceID, const uint8_t Unit, const float Temp);
