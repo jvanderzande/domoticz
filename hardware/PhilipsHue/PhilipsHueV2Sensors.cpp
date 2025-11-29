@@ -8,6 +8,8 @@
 
 using namespace std;
 
+extern std::string hue_errorDescription(const Json::Value& root);
+
 // Constructor
 CPhilipsHueV2Sensors::CPhilipsHueV2Sensors(const std::string& html_schema,
 	const std::string& ipAddress,
@@ -75,6 +77,12 @@ bool CPhilipsHueV2Sensors::FetchDevices()
 		_log.Log(LOG_ERROR, "PhilipsHueV2: FetchDevices JSON parse failed");
 		return false;
 	}
+	if (sResult.find("\"error\":") != std::string::npos)
+	{
+		//We had an error
+		_log.Log(LOG_ERROR, "Error received: %s", hue_errorDescription(root).c_str());
+		return false;
+	}
 	return parseDeviceJson(root);
 }
 
@@ -93,6 +101,12 @@ bool CPhilipsHueV2Sensors::FetchContacts()
 	if (!ParseJSon(sResult, root))
 	{
 		_log.Log(LOG_ERROR, "PhilipsHueV2: FetchContacts JSON parse failed");
+		return false;
+	}
+	if (sResult.find("\"error\":") != std::string::npos)
+	{
+		//We had an error
+		_log.Log(LOG_ERROR, "Error received: %s", hue_errorDescription(root).c_str());
 		return false;
 	}
 	return parseContactJson(root);
@@ -115,6 +129,12 @@ bool CPhilipsHueV2Sensors::FetchTamper()
 		_log.Log(LOG_ERROR, "PhilipsHueV2: FetchTamper JSON parse failed");
 		return false;
 	}
+	if (sResult.find("\"error\":") != std::string::npos)
+	{
+		//We had an error
+		_log.Log(LOG_ERROR, "Error received: %s", hue_errorDescription(root).c_str());
+		return false;
+	}
 	return parseTamperJson(root);
 }
 
@@ -135,6 +155,12 @@ bool CPhilipsHueV2Sensors::FetchDevicePower()
 		_log.Log(LOG_ERROR, "PhilipsHueV2: FetchDevicePower JSON parse failed");
 		return false;
 	}
+	if (sResult.find("\"error\":") != std::string::npos)
+	{
+		//We had an error
+		_log.Log(LOG_ERROR, "Error received: %s", hue_errorDescription(root).c_str());
+		return false;
+	}
 	return parseDevicePowerJson(root);
 }
 
@@ -148,7 +174,8 @@ bool CPhilipsHueV2Sensors::parseDeviceJson(const Json::Value& root)
 	}
 	for (const auto& item : root["data"])
 	{
-		if (!item.isObject()) continue;
+		if (!item.isObject())
+			continue;
 		HueV2Device d;
 		if (item.isMember("id")) d.id = item["id"].asString();
 		if (item.isMember("metadata") && item["metadata"].isObject() && item["metadata"].isMember("name"))
@@ -166,7 +193,9 @@ bool CPhilipsHueV2Sensors::parseDeviceJson(const Json::Value& root)
 		{
 			for (const auto& srv : item["services"])
 			{
-				if (srv.isMember("rid")) d.services_rids.push_back(srv["rid"].asString());
+				if (srv.isMember("rid")) {
+					d.services_rids.push_back(srv["rid"].asString());
+				}
 			}
 		}
 		m_devices.push_back(d);
@@ -240,9 +269,11 @@ bool CPhilipsHueV2Sensors::parseDevicePowerJson(const Json::Value& root)
 	}
 	for (const auto& item : root["data"])
 	{
-		if (!item.isObject()) continue;
+		if (!item.isObject())
+			continue;
 		HueV2DevicePower p;
-		if (item.isMember("id")) p.id = item["id"].asString();
+		if (item.isMember("id"))
+			p.id = item["id"].asString();
 		// optional id_v1 mapping (e.g. "/sensors/25")
 		if (item.isMember("id_v1") && item["id_v1"].isString())
 			p.id_v1 = item["id_v1"].asString();
