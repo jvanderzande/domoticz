@@ -26,6 +26,13 @@
 #define SensorTypeZLLLightLevel "ZLLLightLevel"
 #define SensorTypeGeofence "Geofence"
 
+#define SAFE_TYPE_CHECK(obj, check, fieldname) \
+    do { \
+        if (!((obj).check())) { \
+            _log.Log(LOG_DEBUG_INT, "PhilipsHue: JSON field '%s' has unexpected type", (fieldname)); \
+        } \
+    } while (0)
+
 //#define DEBUG_PhilipsHue
 
 #ifdef DEBUG_PhilipsHue
@@ -73,10 +80,11 @@ CPhilipsHue::CPhilipsHue(const int ID, const std::string& IPAddress, const unsig
 	m_use_v2_sensors = (effectiveOptions & HUE_USE_V2_SENSORS) != 0;
 
 	// Catch uninitialised Mode1 entry.
-	if (m_poll_interval < 1)
+	// if (m_poll_interval < 1)
+	if (m_poll_interval < 5)
 	{
 		m_poll_interval = HUE_DEFAULT_POLL_INTERVAL;
-		Log(LOG_STATUS, "Using default poll interval of %d secs.", m_poll_interval);
+		Log(LOG_STATUS, "Invalid value. Using default poll interval of %d secs.", m_poll_interval);
 	}
 	else
 	{
@@ -311,6 +319,78 @@ bool CPhilipsHue::WriteToHardware(const char* pdata, const unsigned char /*lengt
 	return true;
 }
 
+// -------------------------------------------------------------------
+// Safe wrapper for ParseJSon with truncation detection + exception protection
+// -------------------------------------------------------------------
+static bool SafeParseJson(const std::string& sResult, Json::Value& root)
+{
+    // Trim right
+    auto trim_right = [](const std::string &s)->std::string {
+        size_t i = s.find_last_not_of(" \t\r\n");
+        if (i == std::string::npos) return std::string();
+        return s.substr(0, i+1);
+    };
+
+    // Empty response?
+    if (sResult.empty()) {
+        _log.Log(LOG_ERROR, "PhilipsHue: Empty JSON response from bridge.");
+        return false;
+    }
+
+    // Detect likely truncated JSON
+    std::string sTrimmed = trim_right(sResult);
+    char last = sTrimmed.empty() ? '?' : sTrimmed.back();
+
+    if (sTrimmed.empty() || (last != '}' && last != ']'))
+    {
+        _log.Log(LOG_ERROR,
+            "PhilipsHue: Malformed or truncated JSON from Hue bridge (len=%zu).",
+            sResult.size());
+
+#ifdef DEBUG_PhilipsHue
+        SaveString2Disk(sResult, "/tmp/hue_bad_response.json");
+#endif
+        return false;
+    }
+
+    // Attempt parsing with full exception protection
+    bool ret = false;
+    try {
+        ret = ParseJSon(sResult, root);
+    }
+    catch (const std::exception& ex) {
+        _log.Log(LOG_ERROR,
+            "PhilipsHue: JSON parser threw exception: %s (len=%zu).",
+            ex.what(), sResult.size());
+#ifdef DEBUG_PhilipsHue
+        SaveString2Disk(sResult, "/tmp/hue_bad_response.json");
+#endif
+        return false;
+    }
+    catch (...) {
+        _log.Log(LOG_ERROR,
+            "PhilipsHue: JSON parser threw unknown exception (len=%zu).",
+            sResult.size());
+#ifdef DEBUG_PhilipsHue
+        SaveString2Disk(sResult, "/tmp/hue_bad_response.json");
+#endif
+        return false;
+    }
+
+    if (!ret) {
+        _log.Log(LOG_ERROR,
+            "PhilipsHue: JSON parser returned failure for response len=%zu.",
+            sResult.size());
+#ifdef DEBUG_PhilipsHue
+        SaveString2Disk(sResult, "/tmp/hue_bad_response.json");
+#endif
+        return false;
+    }
+
+    return true;
+}
+
+
 bool CPhilipsHue::SwitchLight(const int nodeID, const std::string& LCmd, const int svalue, const int svalue2 /*= 0*/, const int svalue3 /*= 0*/)
 {
 	std::vector<std::string> ExtraHeaders;
@@ -459,17 +539,31 @@ bool CPhilipsHue::SwitchLight(const int nodeID, const std::string& LCmd, const i
 
 	Json::Value root;
 
-	bool ret = ParseJSon(sResult, root);
-	if (!ret)
-	{
-		Log(LOG_ERROR, "Invalid data received (Switch Light/Scene), or invalid IPAddress/Username!");
+	// bool ret = ParseJSon(sResult, root);
+	// if (!ret)
+	// {
+	// 	Log(LOG_ERROR, "Invalid data received (Switch Light/Scene), or invalid IPAddress/Username!");
+	// 	return false;
+	// }
+	if (!SafeParseJson(sResult, root))
 		return false;
-	}
 
-	if (sResult.find("error") != std::string::npos)
-	{
-		//We had an error
-		Log(LOG_ERROR, "Error received: %s", root[0]["error"]["description"].asString().c_str());
+
+	// if (sResult.find("error") != std::string::npos)
+	// {
+	// 	//We had an error
+	// 	Log(LOG_ERROR, "Error received: %s", root[0]["error"]["description"].asString().c_str());
+	// 	return false;
+	// }
+	if (sResult.find("\"error\":") != std::string::npos) {
+		// normalized handling: support both array-of-errors and object error
+		if (root.isArray() && root.size() > 0 && root[0].isObject() && root[0].isMember("error")) {
+			Log(LOG_ERROR, "Error received: %s", root[0]["error"]["description"].asString().c_str());
+		} else if (root.isObject() && root.isMember("error")) {
+			Log(LOG_ERROR, "Error received: %s", root["error"]["description"].asString().c_str());
+		} else {
+			Log(LOG_ERROR, "Hue bridge returned an error but JSON layout was unexpected");
+		}
 		return false;
 	}
 	return true;
@@ -507,21 +601,44 @@ std::string CPhilipsHue::RegisterUser(const std::string& IPAddress, const unsign
 
 	Json::Value root;
 
-	bool ret = ParseJSon(sResult, root);
+	// bool ret = ParseJSon(sResult, root);
+	bool ret = false;
+	if (SafeParseJson(sResult, root))
+		ret = true;
+
 	if (!ret)
 	{
 		retStr = "Error;Registration failed (Wrong IPAddress?)";
 		return retStr;
 	}
 
-	if (sResult.find("error") != std::string::npos)
-	{
-		retStr = "Error;" + root[0]["error"]["description"].asString();
+	// if (sResult.find("error") != std::string::npos)
+	// {
+	// 	retStr = "Error;" + root[0]["error"]["description"].asString();
+	// 	return retStr;
+	// }
+
+
+	// std::string new_username = root[0]["success"]["username"].asString();
+	// retStr = "OK;" + new_username;
+	if (sResult.find("error") != std::string::npos) {
+		if (root.isArray() && root.size() > 0 && root[0].isObject() && root[0].isMember("error")) {
+			retStr = "Error;" + root[0]["error"]["description"].asString();
+		} else if (root.isObject() && root.isMember("error")) {
+			retStr = "Error;" + root["error"]["description"].asString();
+		} else {
+			retStr = "Error;Unknown response format from Hue bridge";
+		}
 		return retStr;
 	}
 
-	std::string new_username = root[0]["success"]["username"].asString();
-	retStr = "OK;" + new_username;
+	if (root.isArray() && root.size() > 0 && root[0].isObject() && root[0].isMember("success")) {
+		std::string new_username = root[0]["success"]["username"].asString();
+		retStr = "OK;" + new_username;
+	} else {
+		retStr = "Error;Unexpected response format (no success node)";
+	}
+
 	return retStr;
 }
 
@@ -779,20 +896,33 @@ bool CPhilipsHue::GetStates()
 
 	Json::Value root;
 
-	bool ret = ParseJSon(sResult, root);
-	if ((!ret) || (!root.isObject()))
-	{
-		Log(LOG_ERROR, "Invalid data received, or invalid IPAddress/Username!");
+	// bool ret = ParseJSon(sResult, root);
+	// if ((!ret) || (!root.isObject()))
+	// {
+	// 	Log(LOG_ERROR, "Invalid data received, or invalid IPAddress/Username!");
+	// 	return false;
+	// }
+	if (!SafeParseJson(sResult, root))
+		return false;
+
+
+	// if (sResult.find("\"error\":") != std::string::npos)
+	// {
+	// 	//We had an error
+	// 	Log(LOG_ERROR, "Error received: %s", root[0]["error"]["description"].asString().c_str());
+	// 	return false;
+	// }
+	if (sResult.find("\"error\":") != std::string::npos) {
+		// normalized handling: support both array-of-errors and object error
+		if (root.isArray() && root.size() > 0 && root[0].isObject() && root[0].isMember("error")) {
+			Log(LOG_ERROR, "Error received: %s", root[0]["error"]["description"].asString().c_str());
+		} else if (root.isObject() && root.isMember("error")) {
+			Log(LOG_ERROR, "Error received: %s", root["error"]["description"].asString().c_str());
+		} else {
+			Log(LOG_ERROR, "Hue bridge returned an error but JSON layout was unexpected");
+		}
 		return false;
 	}
-
-	if (sResult.find("\"error\":") != std::string::npos)
-	{
-		//We had an error
-		Log(LOG_ERROR, "Error received: %s", root[0]["error"]["description"].asString().c_str());
-		return false;
-	}
-
 
 	if (!GetLights(root))
 	{
@@ -847,12 +977,23 @@ void CPhilipsHue::LightStateFromJSON(const Json::Value& lightstate, _tHueLightSt
 		// 	tlight.on = lightstate["on"].asBool();
 		// }
 		// ---- "on" ----
-		if (lightstate.isMember("on") && lightstate["on"].isBool())
-		{
-			tlight.on = lightstate["on"].asBool();
-		}
-		else
-		{
+		// if (lightstate.isMember("on") && lightstate["on"].isBool())
+		// {
+		// 	tlight.on = lightstate["on"].asBool();
+		// }
+		// else
+		// {
+		// 	// default safe
+		// 	tlight.on = false;
+		// }
+		if (lightstate.isMember("on")) {
+			SAFE_TYPE_CHECK(lightstate["on"], isBool, "on");
+
+			if (lightstate["on"].isBool())
+				tlight.on = lightstate["on"].asBool();
+			else
+				tlight.on = false; // safe fallback
+		} else {
 			// default safe
 			tlight.on = false;
 		}
@@ -865,16 +1006,32 @@ void CPhilipsHue::LightStateFromJSON(const Json::Value& lightstate, _tHueLightSt
 		// 	if (sMode == "ct") tlight.mode = HLMODE_CT;
 		// }
 		// ---- "colormode" ----
-		if (lightstate.isMember("colormode") && lightstate["colormode"].isString())
-		{
-			std::string sMode = lightstate["colormode"].asString();
-			if (sMode == "hs")       tlight.mode = HLMODE_HS;
-			else if (sMode == "xy")  tlight.mode = HLMODE_XY;
-			else if (sMode == "ct")  tlight.mode = HLMODE_CT;
-			else                     tlight.mode = HLMODE_NONE; // Unknown mode (Hue sometimes sends "")
-		}
-		else
-		{
+		// if (lightstate.isMember("colormode") && lightstate["colormode"].isString())
+		// {
+		// 	std::string sMode = lightstate["colormode"].asString();
+		// 	if (sMode == "hs")       tlight.mode = HLMODE_HS;
+		// 	else if (sMode == "xy")  tlight.mode = HLMODE_XY;
+		// 	else if (sMode == "ct")  tlight.mode = HLMODE_CT;
+		// 	else                     tlight.mode = HLMODE_NONE; // Unknown mode (Hue sometimes sends "")
+		// }
+		// else
+		// {
+		// 	// Some bridges leave colormode out when off or switching
+		// 	tlight.mode = HLMODE_NONE;
+		// }
+		if (lightstate.isMember("colormode")) {
+			SAFE_TYPE_CHECK(lightstate["colormode"], isString, "colormode");
+
+			if (lightstate["colormode"].isString()) {
+				std::string sMode = lightstate["colormode"].asString();
+				if (sMode == "hs")      tlight.mode = HLMODE_HS;
+				else if (sMode == "xy") tlight.mode = HLMODE_XY;
+				else if (sMode == "ct") tlight.mode = HLMODE_CT;
+				else                    tlight.mode = HLMODE_NONE; // Unknown mode (Hue sometimes sends "")
+			} else {
+				tlight.mode = HLMODE_NONE;
+			}
+		} else {
 			// Some bridges leave colormode out when off or switching
 			tlight.mode = HLMODE_NONE;
 		}
@@ -890,24 +1047,37 @@ void CPhilipsHue::LightStateFromJSON(const Json::Value& lightstate, _tHueLightSt
 		// 	tlight.level = int(std::ceil((100.0F / 254.0F) * float(tbri)));
 		// }
 		// ---- "bri" ----
-		if (lightstate.isMember("bri") && lightstate["bri"].isInt())
-		{
-			hasBri = true;
-			int tbri = lightstate["bri"].asInt();
+		// if (lightstate.isMember("bri") && lightstate["bri"].isInt())
+		// {
+		// 	hasBri = true;
+		// 	int tbri = lightstate["bri"].asInt();
 
-			// Hue sometimes gives 0 (should be 1..254)
-			tbri = std::max(1, tbri);
-			tbri = std::min(254, tbri);
+		// 	// Hue sometimes gives 0 (should be 1..254)
+		// 	tbri = std::max(1, tbri);
+		// 	tbri = std::min(254, tbri);
 
-			tlight.level = int(std::ceil((100.0F / 254.0F) * float(tbri)));
-		}
-		else
-		{
+		// 	tlight.level = int(std::ceil((100.0F / 254.0F) * float(tbri)));
+		// }
+		// else
+		// {
+		// 	// safe fallback
+		// 	hasBri = false;
+		// 	tlight.level = 0;
+		// }
+		if (lightstate.isMember("bri")) {
+			SAFE_TYPE_CHECK(lightstate["bri"], isInt, "bri");
+
+			if (lightstate["bri"].isInt()) {
+				hasBri = true;
+				int tbri = lightstate["bri"].asInt();
+				tbri = std::max(1, std::min(254, tbri));
+				tlight.level = int(std::ceil((100.0F / 254.0F) * float(tbri)));
+			}
+		} else {
 			// safe fallback
 			hasBri = false;
 			tlight.level = 0;
 		}
-
 
 		// if (!lightstate["sat"].empty())
 		// {
@@ -919,16 +1089,28 @@ void CPhilipsHue::LightStateFromJSON(const Json::Value& lightstate, _tHueLightSt
 		// 	tlight.sat = std::min(254, tlight.sat);
 		// }
 		// ---- "sat" ----
-		if (lightstate.isMember("sat") && lightstate["sat"].isInt())
-		{
-			hasHueSat = true;
-			int tsat = lightstate["sat"].asInt();
-			tsat = std::max(0, tsat);
-			tsat = std::min(254, tsat);
-			tlight.sat = tsat;
-		}
-		else
-		{
+		// if (lightstate.isMember("sat") && lightstate["sat"].isInt())
+		// {
+		// 	hasHueSat = true;
+		// 	int tsat = lightstate["sat"].asInt();
+		// 	tsat = std::max(0, tsat);
+		// 	tsat = std::min(254, tsat);
+		// 	tlight.sat = tsat;
+		// }
+		// else
+		// {
+		// 	// some bulbs don't have saturation
+		// 	tlight.sat = 0;
+		// }
+		if (lightstate.isMember("sat")) {
+			SAFE_TYPE_CHECK(lightstate["sat"], isInt, "sat");
+
+			if (lightstate["sat"].isInt()) {
+				hasHueSat = true;
+				int tsat = lightstate["sat"].asInt();
+				tlight.sat = std::max(0, std::min(254, tsat));
+			}
+		} else {
 			// some bulbs don't have saturation
 			tlight.sat = 0;
 		}
@@ -943,16 +1125,27 @@ void CPhilipsHue::LightStateFromJSON(const Json::Value& lightstate, _tHueLightSt
 		// 	tlight.hue = std::min(65535, tlight.hue);
 		// }
 		// ---- "hue" ----
-		if (lightstate.isMember("hue") && lightstate["hue"].isInt())
-		{
-			hasHueSat = true;
-			int thue = lightstate["hue"].asInt();
-			thue = std::max(0, thue);
-			thue = std::min(65535, thue);
-			tlight.hue = thue;
-		}
-		else
-		{
+		// if (lightstate.isMember("hue") && lightstate["hue"].isInt())
+		// {
+		// 	hasHueSat = true;
+		// 	int thue = lightstate["hue"].asInt();
+		// 	thue = std::max(0, thue);
+		// 	thue = std::min(65535, thue);
+		// 	tlight.hue = thue;
+		// }
+		// else
+		// {
+		// 	tlight.hue = 0;
+		// }
+		if (lightstate.isMember("hue")) {
+			SAFE_TYPE_CHECK(lightstate["hue"], isInt, "hue");
+
+			if (lightstate["hue"].isInt()) {
+				hasHueSat = true;
+				int thue = lightstate["hue"].asInt();
+				tlight.hue = std::max(0, std::min(65535, thue));
+			}
+		} else {
 			tlight.hue = 0;
 		}
 
@@ -966,16 +1159,27 @@ void CPhilipsHue::LightStateFromJSON(const Json::Value& lightstate, _tHueLightSt
 		// 	tlight.ct = std::min(500, tlight.ct);
 		// }
 		// ---- "ct" ----
-		if (lightstate.isMember("ct") && lightstate["ct"].isInt())
-		{
-			hasTemp = true;
-			int tct = lightstate["ct"].asInt();
-			tct = std::max(153, tct);
-			tct = std::min(500, tct);
-			tlight.ct = tct;
-		}
-		else
-		{
+		// if (lightstate.isMember("ct") && lightstate["ct"].isInt())
+		// {
+		// 	hasTemp = true;
+		// 	int tct = lightstate["ct"].asInt();
+		// 	tct = std::max(153, tct);
+		// 	tct = std::min(500, tct);
+		// 	tlight.ct = tct;
+		// }
+		// else
+		// {
+		// 	tlight.ct = 0;
+		// }
+		if (lightstate.isMember("ct")) {
+			SAFE_TYPE_CHECK(lightstate["ct"], isInt, "ct");
+
+			if (lightstate["ct"].isInt()) {
+				hasTemp = true;
+				int tct = lightstate["ct"].asInt();
+				tlight.ct = std::max(153, std::min(500, tct));
+			}
+		} else {
 			tlight.ct = 0;
 		}
 		
@@ -1020,7 +1224,19 @@ bool CPhilipsHue::GetLights(const Json::Value& root)
 			_tHueLightState tlight;
 			_eHueLightType LType;
 			bool bDoSend = true;
-			LightStateFromJSON(light["state"], tlight, LType);
+			// LightStateFromJSON(light["state"], tlight, LType);
+			// Replace single-line call with defensive try/catch
+			try {
+				LightStateFromJSON(light["state"], tlight, LType);
+			}
+			catch (const std::exception& ex) {
+				Log(LOG_ERROR, "PhilipsHue: exception parsing light %s state: %s. Skipping this light.", iLight.key().asString().c_str(), ex.what());
+				continue;
+			}
+			catch (...) {
+				Log(LOG_ERROR, "PhilipsHue: unknown exception parsing light %s state. Skipping this light.", iLight.key().asString().c_str());
+				continue;
+			}
 
 			auto myLight = m_lights.find(lID);
 			if (myLight != m_lights.end())
@@ -1103,19 +1319,35 @@ bool CPhilipsHue::GetGroups(const Json::Value& root)
 		return true;
 	}
 	Json::Value root2;
-	bool ret = ParseJSon(sResult, root2);
-	if ((!ret) || (!root2.isObject()))
-	{
-		Log(LOG_ERROR, "Invalid data received, or invalid IPAddress/Username!");
+	// bool ret = ParseJSon(sResult, root2);
+	// if ((!ret) || (!root2.isObject()))
+	// {
+	// 	Log(LOG_ERROR, "Invalid data received, or invalid IPAddress/Username!");
+	// 	return false;
+	// }
+	if (!SafeParseJson(sResult, root2)) {
 		return false;
 	}
 
-	if (sResult.find("\"error\":") != std::string::npos)
-	{
-		//We had an error
-		Log(LOG_ERROR, "Error received: %s", root2[0]["error"]["description"].asString().c_str());
+
+	// if (sResult.find("\"error\":") != std::string::npos)
+	// {
+	// 	//We had an error
+	// 	Log(LOG_ERROR, "Error received: %s", root2[0]["error"]["description"].asString().c_str());
+	// 	return false;
+	// }
+	if (sResult.find("\"error\":") != std::string::npos) {
+		// normalized handling: support both array-of-errors and object error
+		if (root2.isArray() && root2.size() > 0 && root2[0].isObject() && root2[0].isMember("error")) {
+			Log(LOG_ERROR, "Error received: %s", root2[0]["error"]["description"].asString().c_str());
+		} else if (root2.isObject() && root2.isMember("error")) {
+			Log(LOG_ERROR, "Error received: %s", root2["error"]["description"].asString().c_str());
+		} else {
+			Log(LOG_ERROR, "Hue bridge returned an error but JSON layout was unexpected");
+		}
 		return false;
 	}
+
 
 	if (sResult.find("lights") == std::string::npos)
 	{
@@ -1133,27 +1365,49 @@ bool CPhilipsHue::GetGroups(const Json::Value& root)
 
 	_eHueLightType LType = HLTYPE_RGB_W;// HLTYPE_NORMAL;
 
-	if (!root2["action"]["on"].empty())
-	{
-		tstate.on = root2["action"]["on"].asBool();
-		if (tstate.on) tstate.level = 100; // Set default full brightness for non dimmable group
-	}
-	if (!root2["action"]["bri"].empty())
-	{
-		int tbri = root2["action"]["bri"].asInt();
-		if ((tbri != 0) && (tbri < 3))
-			tbri = 3;
-		tstate.level = int((100.0F / 254.0F) * float(tbri));
-	}
-	if (!root2["action"]["sat"].empty())
-	{
-		tstate.sat = root2["action"]["sat"].asInt();
-		//LType = HLTYPE_RGB_W;
-	}
-	if (!root2["action"]["hue"].empty())
-	{
-		tstate.hue = root2["action"]["hue"].asInt();
-		//LType = HLTYPE_RGB_W;
+	// if (!root2["action"]["on"].empty())
+	// {
+	// 	tstate.on = root2["action"]["on"].asBool();
+	// 	if (tstate.on) tstate.level = 100; // Set default full brightness for non dimmable group
+	// }
+	// if (!root2["action"]["bri"].empty())
+	// {
+	// 	int tbri = root2["action"]["bri"].asInt();
+	// 	if ((tbri != 0) && (tbri < 3))
+	// 		tbri = 3;
+	// 	tstate.level = int((100.0F / 254.0F) * float(tbri));
+	// }
+	// if (!root2["action"]["sat"].empty())
+	// {
+	// 	tstate.sat = root2["action"]["sat"].asInt();
+	// 	//LType = HLTYPE_RGB_W;
+	// }
+	// if (!root2["action"]["hue"].empty())
+	// {
+	// 	tstate.hue = root2["action"]["hue"].asInt();
+	// 	//LType = HLTYPE_RGB_W;
+	// }
+	Json::Value action0 = root2.get("action", Json::Value());
+	if (action0.isObject()) {
+		if (action0.isMember("on") && (action0["on"].isBool())) {
+			tstate.on = action0["on"].asBool();
+			if (tstate.on) tstate.level = 100;
+		}
+		if (action0.isMember("bri") && action0["bri"].isInt()) {
+			int tbri = action0["bri"].asInt();
+			if ((tbri != 0) && (tbri < 3)) tbri = 3;
+			tstate.level = int((100.0F / 254.0F) * float(tbri));
+		}
+		if (action0.isMember("sat") && action0["sat"].isInt()) {
+			tstate.sat = action0["sat"].asInt();
+			//LType = HLTYPE_RGB_W;
+		}
+		if (action0.isMember("hue") && action0["hue"].isInt()) {
+			tstate.hue = action0["hue"].asInt();
+			//LType = HLTYPE_RGB_W;
+		}
+	} else {
+		Log(LOG_DEBUG_INT, "PhilipsHue: groups/0 returned unexpected 'action' type, ignoring action fields.");
 	}
 
 	int gID = 0;
@@ -1182,8 +1436,10 @@ bool CPhilipsHue::GetScenes(const Json::Value& root)
 		{
 			_tHueScene hscene;
 			hscene.id = iScene.key().asString();
-			hscene.name = scene["name"].asString();
-			hscene.lastupdated = scene["lastupdated"].asString();
+			// hscene.name = scene["name"].asString();
+			// hscene.lastupdated = scene["lastupdated"].asString();
+			hscene.name = scene.get("name", "").asString();
+			hscene.lastupdated = scene.get("lastupdated", "").asString();
 			if (hscene.lastupdated.empty())
 				continue; //old scene/legacy scene
 
