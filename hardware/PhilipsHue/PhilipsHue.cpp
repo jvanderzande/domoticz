@@ -507,7 +507,7 @@ bool CPhilipsHue::SwitchLight(const int nodeID, const std::string& LCmd, const i
 		return false;
 	}
 
-	if (sResult.find("error") != std::string::npos)
+	if (sResult.find("\"error\":") != std::string::npos)
 	{
 		//We had an error
 		Log(LOG_ERROR, "SwitchLight Error received: %s", hue_errorDescription(root).c_str());
@@ -558,7 +558,7 @@ std::string CPhilipsHue::RegisterUser(const std::string& IPAddress, const unsign
 		retStr = "Error;Registration failed (Wrong IPAddress?)";
 		return retStr;
 	}
-	if (sResult.find("error") != std::string::npos)
+	if (sResult.find("\"error\":") != std::string::npos)
 	{
 		retStr = "Error;" + hue_errorDescription(root);
 	 	return retStr;
