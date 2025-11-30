@@ -929,15 +929,16 @@ void CWebServer::Alexa_HandleDiscovery(WebEmSession& session, const request& req
 
 			// Add ThermostatController
 			Json::Value thermo_capability = CreateCapabilityWithProperties("Alexa.ThermostatController", "targetSetpoint", false, true, !bControlPermitted);
+			// Always add thermostatMode to supported properties (defaults to HEAT if no mode selector)
+			thermo_capability["properties"]["supported"].append(Json::Value());
+			thermo_capability["properties"]["supported"][1]["name"] = "thermostatMode";
+
+			thermo_capability["configuration"]["supportsScheduling"] = false;
+			thermo_capability["configuration"]["supportedModes"] = Json::Value(Json::arrayValue);
+			thermo_capability["configuration"]["supportedModes"].append("HEAT");
 			if (!mode_idx_str.empty())
 			{
-				// Add thermostatMode to supported properties
-				thermo_capability["properties"]["supported"].append(Json::Value());
-				thermo_capability["properties"]["supported"][1]["name"] = "thermostatMode";
-
-				thermo_capability["configuration"]["supportsScheduling"] = false;
-				thermo_capability["configuration"]["supportedModes"] = Json::Value(Json::arrayValue);
-				thermo_capability["configuration"]["supportedModes"].append("HEAT");
+				// Only add OFF mode if there's a mode selector to control it
 				thermo_capability["configuration"]["supportedModes"].append("OFF");
 			}
 			endpoint["capabilities"].append(thermo_capability);
