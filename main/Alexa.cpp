@@ -1352,7 +1352,7 @@ static void Alexa_HandleControl_PowerController(WebEmSession& session, const Jso
 			// PowerController for blinds - stop command
 			_log.Log(LOG_STATUS, "User: %s stopped blind %llu via Alexa", session.username.c_str(), device_idx);
 
-			if (m_mainworker.SwitchLight(device_idx, "Stop", 0, NoColor, false, 0, session.username) == MainWorker::SL_ERROR)
+			if (m_mainworker.SwitchLight(device_idx, "Stop", -1, NoColor, false, 0, session.username) == MainWorker::SL_ERROR)
 			{
 				CreateErrorResponse(root, request_json, "ENDPOINT_UNREACHABLE", "Unable to control device - hardware communication error");
 				return;
