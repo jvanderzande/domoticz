@@ -1391,6 +1391,33 @@ static void Alexa_HandleControl_PowerController(WebEmSession& session, const Jso
 			}
 
 			root["context"]["properties"].append(CreateProperty("Alexa.PowerController", "powerState", (directive_name == "TurnOn") ? "ON" : "OFF"));
+
+			// For dimmers, also report brightness level after TurnOn
+			Json::Value cookie = request_json["directive"]["endpoint"]["cookie"];
+			int switch_type = cookie["switchtype"].isInt() ? cookie["switchtype"].asInt() : atoi(cookie["switchtype"].asString().c_str());
+			if (switch_type == STYPE_Dimmer && directive_name == "TurnOn")
+			{
+				// Query actual brightness after turning on
+				std::vector<std::vector<std::string>> result;
+				result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+				if (!result.empty())
+				{
+					unsigned char dType = atoi(result[0][0].c_str());
+					unsigned char dSubType = atoi(result[0][1].c_str());
+					_eSwitchType switchtype = (_eSwitchType)atoi(result[0][2].c_str());
+					unsigned char nValue = atoi(result[0][3].c_str());
+					std::string sValue = result[0][4];
+
+					std::string lstatus;
+					int level;
+					bool bHaveDimmer, bHaveGroupCmd;
+					int maxDimLevel;
+					GetLightStatus(dType, dSubType, switchtype, nValue, sValue, lstatus, level, bHaveDimmer, maxDimLevel, bHaveGroupCmd);
+
+					root["context"]["properties"].append(CreateProperty("Alexa.BrightnessController", "brightness", level));
+				}
+			}
+
 			root["context"]["properties"].append(CreateEndpointHealthProperty());
 			return;
 		}
@@ -1446,7 +1473,11 @@ static void Alexa_HandleControl_BrightnessController(WebEmSession& session, cons
 		int maxDimLevel;
 		GetLightStatus(dType, dSubType, switchtype, nValue, sValue, lstatus, level, bHaveDimmer, maxDimLevel, bHaveGroupCmd);
 
-		int new_brightness = level + brightnessDelta;
+		// If device is off, treat current level as 0
+		bool is_off = (lstatus == "Off");
+		int current_level = is_off ? 0 : level;
+
+		int new_brightness = current_level + brightnessDelta;
 		if (new_brightness < 0) new_brightness = 0;
 		if (new_brightness > 100) new_brightness = 100;
 
