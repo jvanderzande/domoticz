@@ -1529,9 +1529,6 @@
     <ClInclude Include="..\main\appversion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\main\Helper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\main\mainworker.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -2267,6 +2264,9 @@
     <ClInclude Include="..\hardware\CounterHelper.h">
       <Filter>Helpers</Filter>
     </ClInclude>
+    <ClInclude Include="..\main\Helper.h">
+      <Filter>Helpers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\webserver\Base64.cpp">
@@ -2324,9 +2324,6 @@
       <Filter>HTTPClient</Filter>
     </ClCompile>
     <ClCompile Include="..\main\domoticz.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\main\Helper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\main\mainworker.cpp">
@@ -3068,6 +3065,9 @@
       <Filter>Helpers</Filter>
     </ClCompile>
     <ClCompile Include="..\main\StoppableTask.cpp">
+      <Filter>Helpers</Filter>
+    </ClCompile>
+    <ClCompile Include="..\main\Helper.cpp">
       <Filter>Helpers</Filter>
     </ClCompile>
   </ItemGroup>
