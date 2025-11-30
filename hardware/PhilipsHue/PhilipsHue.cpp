@@ -39,6 +39,13 @@
 #endif
 
 #ifdef DEBUG_PhilipsHue_W
+extern void SaveString2Disk(std::string str, std::string filename);
+#endif
+#ifdef DEBUG_PhilipsHue_R
+std::string ReadFile(std::string filename)
+#endif
+
+#ifdef DEBUG_PhilipsHue_W
 void SaveString2Disk(std::string str, std::string filename)
 {
 	FILE* fOut = fopen(filename.c_str(), "wb+");
@@ -488,10 +495,13 @@ bool CPhilipsHue::SwitchLight(const int nodeID, const std::string& LCmd, const i
 		Log(LOG_ERROR, "Error connecting to Hue bridge (Switch Light/Scene), (Check IPAddress/Username)");
 		return false;
 	}
+#ifdef DEBUG_PhilipsHue_W
+	SaveString2Disk(sResult, urlToFilename("PhilipsHue", sURL));
+#endif
 
 	Json::Value root;
 	bool ret = ParseJSon(sResult, root);
-	if ((!ret) || (!root.isObject()))
+	if (!ret)
 	{
 		Log(LOG_ERROR, "Error sending switch command. Invalid (json) data retuned.");
 		return false;
@@ -536,6 +546,9 @@ std::string CPhilipsHue::RegisterUser(const std::string& IPAddress, const unsign
 		retStr = "Error;Error connecting to Hue bridge:";
 		return retStr;
 	}
+#ifdef DEBUG_PhilipsHue_W
+	SaveString2Disk(sResult, urlToFilename("PhilipsHue", sURL));
+#endif
 
 	Json::Value root;
 
@@ -789,13 +802,21 @@ void CPhilipsHue::InsertUpdateLamp(const int NodeID, const _eHueLightType LType,
 	}
 }
 
+static bool hue_http_get(const std::string& url, const std::vector<std::string>& ExtraHeaders, std::string& outBody)
+{
+#ifdef DEBUG_PhilipsHue_R
+	outBody = ReadFile(urlToFilename("PhilipsHue", url));
+#endif
+	bool ret = HTTPClient::GET(url, ExtraHeaders, outBody);
+#ifdef DEBUG_PhilipsHue_W
+	SaveString2Disk(outBody, urlToFilename("PhilipsHue", url));
+#endif
+	return ret;
+}
+
 bool CPhilipsHue::GetStates()
 {
 	std::string sResult;
-
-#ifdef DEBUG_PhilipsHue_R
-	sResult = ReadFile("E:\\philipshue.json");
-#else
 	std::stringstream sstr2;
 	sstr2 << m_html_schema << "://" << m_IPAddress
 		<< ":" << m_Port
@@ -803,16 +824,11 @@ bool CPhilipsHue::GetStates()
 	//Get Data
 	std::string sURL = sstr2.str();
 	std::vector<std::string> ExtraHeaders;
-	if (!HTTPClient::GET(sURL, ExtraHeaders, sResult))
+	if (!hue_http_get(sURL, ExtraHeaders, sResult))
 	{
 		Log(LOG_ERROR, "Error getting Light States, (Check IPAddress/Username)");
 		return false;
 	}
-#endif
-#ifdef DEBUG_PhilipsHue_W
-	SaveString2Disk(sResult, "E:\\philipshue.json");
-#endif
-
 	Json::Value root;
 	bool ret = ParseJSon(sResult, root);
 	if (!ret) 
@@ -1081,7 +1097,7 @@ bool CPhilipsHue::GetGroups(const Json::Value& root)
 		<< "/groups/0";
 	std::string sResult;
 	std::vector<std::string> ExtraHeaders;
-	if (!HTTPClient::GET(sstr2.str(), ExtraHeaders, sResult))
+	if (!hue_http_get(sstr2.str(), ExtraHeaders, sResult))
 	{
 		//No group all(0)
 		return true;
@@ -1357,7 +1373,8 @@ bool CPhilipsHue::GetV2Sensors()
 					else
 						batteryLevel = 255; // unknown
 				}
-				if (batteryLevel > 100 && batteryLevel != 255) batteryLevel = 100;
+				if (batteryLevel > 100 && batteryLevel != 255)
+					batteryLevel = 100;
 				if (batteryLevel == 255)
 					continue;
 

@@ -2,11 +2,24 @@
 #include "PhilipsHueV2Sensors.h"
 #include "../../httpclient/HTTPClient.h"
 #include "../../main/json_helper.h"
+#include "../../main/Helper.h"
 #include "../../main/Logger.h"
 #include <json/json.h> // Json::Value
 #include <algorithm>
 
-using namespace std;
+
+#ifdef _DEBUG
+//should be the same as in the main class!
+//#define DEBUG_PhilipsHue_R
+//#define DEBUG_PhilipsHue_W
+#endif
+
+#ifdef DEBUG_PhilipsHue_W
+extern void SaveString2Disk(std::string str, std::string filename);
+#endif
+#ifdef DEBUG_PhilipsHue_R
+std::string ReadFile(std::string filename)
+#endif
 
 extern std::string hue_errorDescription(const Json::Value& root);
 
@@ -51,13 +64,20 @@ bool CPhilipsHueV2Sensors::UpdateAll()
 // Helper: GET with hue-application-key header using project HTTPClient
 static bool http_get_with_key(const std::string& url, const std::string& appKey, std::string& outBody)
 {
+#ifdef DEBUG_PhilipsHue_R
+	outBody = ReadFile(urlToFilename("PhilipsHue", url));
+#endif
 	std::vector<std::string> ExtraHeaders;
 	ExtraHeaders.push_back("Accept: application/json");
 	if (!appKey.empty())
 	{
 		ExtraHeaders.push_back(std::string("hue-application-key: ") + appKey);
 	}
-	return HTTPClient::GET(url, ExtraHeaders, outBody);
+	bool ret = HTTPClient::GET(url, ExtraHeaders, outBody);
+#ifdef DEBUG_PhilipsHue_W
+	SaveString2Disk(outBody, urlToFilename("PhilipsHue", url));
+#endif
+	return ret;
 }
 
 // Fetch /clip/v2/resource/device
@@ -66,6 +86,7 @@ bool CPhilipsHueV2Sensors::FetchDevices()
 	m_devices.clear();
 	std::string url = m_BaseURLv2.str() + "/clip/v2/resource/device";
 	std::string sResult;
+
 	if (!http_get_with_key(url, m_ApplicationKey, sResult))
 	{
 		_log.Log(LOG_DEBUG_INT, "PhilipsHueV2: FetchDevices HTTP GET failed (%s)", url.c_str());
