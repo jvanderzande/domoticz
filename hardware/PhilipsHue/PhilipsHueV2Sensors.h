@@ -22,6 +22,19 @@ struct HueV2Device {
 	std::vector<std::string> services_rids; // rids to lookup contact/tamper/device_power
 };
 
+struct HueV2Light {
+	std::string id;
+	std::string owner_rid;
+	bool on = false;
+	//_eHueColorMode mode;
+	int level = 0;
+	int hue  = 0;
+	int sat = 0;
+	int ct = 0;
+	double x = 0;
+	double y = 0;
+};
+
 struct HueV2Contact {
 	std::string id;
 	std::string owner_rid;
@@ -67,12 +80,14 @@ public:
 
 	// Individual fetch functions (public for testing)
 	bool FetchDevices();
+	bool FetchLights();
 	bool FetchContacts();
 	bool FetchTamper();
 	bool FetchDevicePower();
 
 	// Getters
 	const std::vector<HueV2Device>& GetDevices() const { return m_devices; }
+	const std::vector<HueV2Light>& GetLights() const { return m_lights; }
 	const std::vector<HueV2Contact>& GetContacts() const { return m_contacts; }
 	const std::vector<HueV2Tamper>& GetTampers() const { return m_tampers; }
 	const std::vector<HueV2DevicePower>& GetDevicePowers() const { return m_devicePowers; }
@@ -86,10 +101,12 @@ public:
 private:
 	// parse helpers
 	bool parseDeviceJson(const Json::Value& root);
+	bool parseLightJson(const Json::Value& root);
 	bool parseContactJson(const Json::Value& root);
 	bool parseTamperJson(const Json::Value& root);
 	bool parseDevicePowerJson(const Json::Value& root);
 
+	bool http_get_v2_with_key(const std::string& api_endpoint, const std::string& appKey, std::string& outBody);
 private:
 	std::string m_html_schema;
 	std::string m_IPAddress;
@@ -98,6 +115,7 @@ private:
 	std::string m_ApplicationKey;
 
 	std::vector<HueV2Device> m_devices;
+	std::vector<HueV2Light> m_lights;
 	std::vector<HueV2Contact> m_contacts;
 	std::vector<HueV2Tamper> m_tampers;
 	std::vector<HueV2DevicePower> m_devicePowers;
