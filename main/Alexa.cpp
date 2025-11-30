@@ -1781,9 +1781,34 @@ static void Alexa_HandleControl_ThermostatController(WebEmSession& session, cons
 			}
 			current_temp = atof(values[1].c_str());
 		}
+		else if (what_am_i == "thermostat6")
+		{
+			// For thermostat6, query the device itself
+			std::vector<std::vector<std::string>> result;
+			result = m_sql.safe_query("SELECT sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+			if (result.empty())
+			{
+				CreateErrorResponse(root, request_json, "NO_SUCH_ENDPOINT", "Thermostat not found");
+				return;
+			}
+			// Parse sValue: "temp;setpoint" or "temp;setpoint;humidity" or "temp;setpoint;humidity;barometer"
+			std::vector<std::string> values;
+			StringSplit(result[0][0], ";", values);
+			if (values.size() < 2)
+			{
+				CreateErrorResponse(root, request_json, "INTERNAL_ERROR", "Invalid thermostat data");
+				return;
+			}
+			current_temp = atof(values[1].c_str());
+		}
 		else
 		{
 			std::string setpoint_idx_str = cookie.get("setpointIdx", "").asString();
+			if (setpoint_idx_str.empty())
+			{
+				CreateErrorResponse(root, request_json, "INTERNAL_ERROR", "Missing setpoint device reference");
+				return;
+			}
 			uint64_t setpoint_idx = std::stoull(setpoint_idx_str);
 			std::vector<std::vector<std::string>> result;
 			result = m_sql.safe_query("SELECT sValue FROM DeviceStatus WHERE (ID = %llu)", setpoint_idx);
@@ -1808,6 +1833,15 @@ static void Alexa_HandleControl_ThermostatController(WebEmSession& session, cons
 			temp_value["value"] = new_temp;
 			temp_value["scale"] = "CELSIUS";
 			root["context"]["properties"].append(CreateProperty("Alexa.ThermostatController", "targetSetpoint", temp_value));
+		}
+		else if (what_am_i == "thermostat6")
+		{
+			// For thermostat6, use SetSetPoint on the main device
+			std::string idx_str = std::to_string(device_idx);
+			m_mainworker.SetSetPoint(idx_str, static_cast<float>(new_temp));
+
+			// Report updated state using common function
+			ReportThermostatState(root, cookie, 0, false, std::to_string(new_temp));
 		}
 		else
 		{
