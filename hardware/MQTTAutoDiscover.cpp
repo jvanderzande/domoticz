@@ -2934,7 +2934,7 @@ void MQTTAutoDiscover::handle_auto_discovery_sensor(_tMQTTASensor* pSensor, cons
 			sValue = pSensor->sValue;
 		}
 		std::vector<std::vector<std::string>> result;
-		result = m_sql.safe_query("SELECT Name,nValue,sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d) AND (Type==%d) AND (Subtype==%d)",
+		result = m_sql.safe_query("SELECT ID, Name, nValue, sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d) AND (Type==%d) AND (Subtype==%d)",
 			m_HwdID, szDeviceID.c_str(), 1, devType, subType);
 		if (result.empty())
 		{
@@ -2954,7 +2954,14 @@ void MQTTAutoDiscover::handle_auto_discovery_sensor(_tMQTTASensor* pSensor, cons
 			// Update
 			if (message->retain)
 				return; // only update when a new value is received
-			UpdateValueInt(m_HwdID, szDeviceID.c_str(), 1, devType, subType, pSensor->SignalLevel, pSensor->BatteryLevel, nValue, sValue.c_str(), result[0][0]);
+			UpdateValueInt(m_HwdID, szDeviceID.c_str(), 1, devType, subType, pSensor->SignalLevel, pSensor->BatteryLevel, nValue, sValue.c_str(), result[0][1]);
+
+			if (pTempSensor)
+			{
+				uint64_t DevRowIdx = std::stoull(result[0][0]);
+				uint64_t tID = ((uint64_t)(m_HwdID & 0x7FFFFFFF) << 32) | (DevRowIdx & 0x7FFFFFFF);
+				m_mainworker.m_trend_calculator[tID].AddValueAndReturnTendency(static_cast<double>(temp), _tTrendCalculator::TAVERAGE_TEMP);
+			}
 		}
 	}
 	else
