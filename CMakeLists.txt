@@ -32,7 +32,7 @@ option(USE_PYTHON "Use Python for Plugins and Event-Scripts" YES)
 option(INCLUDE_LINUX_I2C "Include I2C support" YES)
 option(INCLUDE_SPI "Include SPI support" YES)
 option(WITH_LIBUSB "Enable libusb support" YES)
-option(WITH_TELLDUSCORE "Enable Telldus support" YES)
+option(WITH_TELLDUSCORE "Enable Telldus support" NO)
 
 # Link static or shared, external dependencies
 option(USE_LUA_STATIC "Link LUA static" YES)
@@ -798,7 +798,7 @@ IF(WITH_TELLDUSCORE)
       add_definitions(-DWITH_TELLDUSCORE)
     ENDIF(TELLDUS_LIBRARIES)
   ELSE()
-    message(STATUS "Not found telldus-core (telldus-core.h), not adding tellstick support")
+    message(FATAL_ERROR "Not found telldus-core (telldus-core.h), not adding tellstick support")
   ENDIF(TELLDUSCORE_INCLUDE)
 ENDIF(WITH_TELLDUSCORE)
 
