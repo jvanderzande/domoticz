@@ -4388,14 +4388,14 @@ void MQTTAutoDiscover::handle_auto_discovery_climate(_tMQTTASensor* pSensor, con
 
 			// Query existing device to get current values
 			std::vector<std::vector<std::string>> result;
-			result = m_sql.safe_query("SELECT Name,sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit==%d) AND (Type==%d) AND (Subtype==%d)",
+			result = m_sql.safe_query("SELECT ID, Name, sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit==%d) AND (Type==%d) AND (Subtype==%d)",
 				m_HwdID, pSensor->unique_id.c_str(), Unit, pSensor->devType, pSensor->subType);
 
 			if (!result.empty())
 			{
 				// Parse existing values
 				std::vector<std::string> fields;
-				StringSplit(result[0][1], ";", fields);
+				StringSplit(result[0][2], ";", fields);
 				if (bHasHumidity && fields.size() >= 4)
 				{
 					if (!bHaveTemp)
@@ -4451,7 +4451,14 @@ void MQTTAutoDiscover::handle_auto_discovery_climate(_tMQTTASensor* pSensor, con
 			{
 				// Update
 				UpdateValueInt(m_HwdID, pSensor->unique_id.c_str(), Unit, pSensor->devType, pSensor->subType, pSensor->SignalLevel, pSensor->BatteryLevel, pSensor->nValue,
-					pSensor->sValue.c_str(), result[0][0]);
+					pSensor->sValue.c_str(), result[0][1]);
+
+				if (bHaveTemp)
+				{
+					uint64_t DevRowIdx = std::stoull(result[0][0]);
+					uint64_t tID = ((uint64_t)(m_HwdID & 0x7FFFFFFF) << 32) | (DevRowIdx & 0x7FFFFFFF);
+					m_mainworker.m_trend_calculator[tID].AddValueAndReturnTendency(static_cast<double>(temp_current), _tTrendCalculator::TAVERAGE_TEMP);
+				}
 			}
 		}
 
@@ -4525,7 +4532,7 @@ void MQTTAutoDiscover::handle_auto_discovery_climate(_tMQTTASensor* pSensor, con
 			int Unit = CLIMATE_TEMP_SETPOINT_UNIT;
 
 			std::vector<std::vector<std::string>> result;
-			result = m_sql.safe_query("SELECT Name,nValue,sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d) AND (Type==%d) AND (Subtype==%d)", m_HwdID,
+			result = m_sql.safe_query("SELECT ID, Name, nValue, sValue FROM DeviceStatus WHERE (HardwareID==%d) AND (DeviceID=='%q') AND (Unit == %d) AND (Type==%d) AND (Subtype==%d)", m_HwdID,
 				pSensor->unique_id.c_str(), Unit, pSensor->devType, pSensor->subType);
 			if (result.empty())
 			{
@@ -4545,7 +4552,11 @@ void MQTTAutoDiscover::handle_auto_discovery_climate(_tMQTTASensor* pSensor, con
 			{
 				// Update
 				UpdateValueInt(m_HwdID, pSensor->unique_id.c_str(), Unit, pSensor->devType, pSensor->subType, pSensor->SignalLevel, pSensor->BatteryLevel, pSensor->nValue,
-					pSensor->sValue.c_str(), result[0][0]);
+					pSensor->sValue.c_str(), result[0][1]);
+
+				uint64_t DevRowIdx = std::stoull(result[0][0]);
+				uint64_t tID = ((uint64_t)(m_HwdID & 0x7FFFFFFF) << 32) | (DevRowIdx & 0x7FFFFFFF);
+				m_mainworker.m_trend_calculator[tID].AddValueAndReturnTendency(static_cast<double>(temp_current), _tTrendCalculator::TAVERAGE_TEMP);
 			}
 		}
 	}
