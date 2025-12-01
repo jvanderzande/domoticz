@@ -3486,7 +3486,7 @@ bool CSQLHelper::OpenDatabase()
 	{
 		UpdatePreferencesVar("NotificationSwitchInterval", 0);
 	}
-	if ((!GetPreferencesVar("RemoteSharedPort", nValue)) || (nValue == 0))
+	if (!GetPreferencesVar("RemoteSharedPort", nValue))
 	{
 		UpdatePreferencesVar("RemoteSharedPort", 6144);
 	}
