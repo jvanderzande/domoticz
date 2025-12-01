@@ -929,15 +929,16 @@ void CWebServer::Alexa_HandleDiscovery(WebEmSession& session, const request& req
 
 			// Add ThermostatController
 			Json::Value thermo_capability = CreateCapabilityWithProperties("Alexa.ThermostatController", "targetSetpoint", false, true, !bControlPermitted);
+			// Always add thermostatMode to supported properties (defaults to HEAT if no mode selector)
+			thermo_capability["properties"]["supported"].append(Json::Value());
+			thermo_capability["properties"]["supported"][1]["name"] = "thermostatMode";
+
+			thermo_capability["configuration"]["supportsScheduling"] = false;
+			thermo_capability["configuration"]["supportedModes"] = Json::Value(Json::arrayValue);
+			thermo_capability["configuration"]["supportedModes"].append("HEAT");
 			if (!mode_idx_str.empty())
 			{
-				// Add thermostatMode to supported properties
-				thermo_capability["properties"]["supported"].append(Json::Value());
-				thermo_capability["properties"]["supported"][1]["name"] = "thermostatMode";
-
-				thermo_capability["configuration"]["supportsScheduling"] = false;
-				thermo_capability["configuration"]["supportedModes"] = Json::Value(Json::arrayValue);
-				thermo_capability["configuration"]["supportedModes"].append("HEAT");
+				// Only add OFF mode if there's a mode selector to control it
 				thermo_capability["configuration"]["supportedModes"].append("OFF");
 			}
 			endpoint["capabilities"].append(thermo_capability);
@@ -1178,8 +1179,7 @@ void CWebServer::Alexa_HandleAcceptGrant(WebEmSession& session, const request& r
 static void Alexa_HandleControl_scene(WebEmSession& session, const Json::Value& request_json, Json::Value& root, uint64_t device_idx, const std::string& directive_namespace, const std::string& directive_name)
 {
 	// Check if scene is protected
-	std::vector<std::vector<std::string>> result;
-	result = m_sql.safe_query("SELECT Protected FROM Scenes WHERE (ID = %llu)", device_idx);
+	auto result = m_sql.safe_query("SELECT Protected FROM Scenes WHERE (ID = %llu)", device_idx);
 	if (result.empty() || atoi(result[0][0].c_str()) != 0)
 	{
 		CreateErrorResponse(root, request_json, "NO_SUCH_ENDPOINT", "Scene not found or protected");
@@ -1298,8 +1298,7 @@ static void Alexa_HandleControl_RangeController(WebEmSession& session, const Jso
 	{
 		int rangeDelta = request_json["directive"]["payload"]["rangeValueDelta"].asInt();
 
-		std::vector<std::vector<std::string>> result;
-		result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+		auto result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
 		if (result.empty())
 		{
 			CreateErrorResponse(root, request_json, "NO_SUCH_ENDPOINT", "Device not found");
@@ -1351,14 +1350,13 @@ static void Alexa_HandleControl_PowerController(WebEmSession& session, const Jso
 			// PowerController for blinds - stop command
 			_log.Log(LOG_STATUS, "User: %s stopped blind %llu via Alexa", session.username.c_str(), device_idx);
 
-			if (m_mainworker.SwitchLight(device_idx, "Stop", 0, NoColor, false, 0, session.username) == MainWorker::SL_ERROR)
+			if (m_mainworker.SwitchLight(device_idx, "Stop", -1, NoColor, false, 0, session.username) == MainWorker::SL_ERROR)
 			{
 				CreateErrorResponse(root, request_json, "ENDPOINT_UNREACHABLE", "Unable to control device - hardware communication error");
 				return;
 			}
 
-			std::vector<std::vector<std::string>> result;
-			result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+			auto result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
 			if (!result.empty())
 			{
 				unsigned char dType = atoi(result[0][0].c_str());
@@ -1391,6 +1389,32 @@ static void Alexa_HandleControl_PowerController(WebEmSession& session, const Jso
 			}
 
 			root["context"]["properties"].append(CreateProperty("Alexa.PowerController", "powerState", (directive_name == "TurnOn") ? "ON" : "OFF"));
+
+			// For dimmers, also report brightness level after TurnOn
+			Json::Value cookie = request_json["directive"]["endpoint"]["cookie"];
+			int switch_type = cookie["switchtype"].isInt() ? cookie["switchtype"].asInt() : atoi(cookie["switchtype"].asString().c_str());
+			if (switch_type == STYPE_Dimmer && directive_name == "TurnOn")
+			{
+				// Query actual brightness after turning on
+				auto result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+				if (!result.empty())
+				{
+					unsigned char dType = atoi(result[0][0].c_str());
+					unsigned char dSubType = atoi(result[0][1].c_str());
+					_eSwitchType switchtype = (_eSwitchType)atoi(result[0][2].c_str());
+					unsigned char nValue = atoi(result[0][3].c_str());
+					std::string sValue = result[0][4];
+
+					std::string lstatus;
+					int level;
+					bool bHaveDimmer, bHaveGroupCmd;
+					int maxDimLevel;
+					GetLightStatus(dType, dSubType, switchtype, nValue, sValue, lstatus, level, bHaveDimmer, maxDimLevel, bHaveGroupCmd);
+
+					root["context"]["properties"].append(CreateProperty("Alexa.BrightnessController", "brightness", level));
+				}
+			}
+
 			root["context"]["properties"].append(CreateEndpointHealthProperty());
 			return;
 		}
@@ -1426,8 +1450,7 @@ static void Alexa_HandleControl_BrightnessController(WebEmSession& session, cons
 		int brightnessDelta = request_json["directive"]["payload"]["brightnessDelta"].asInt();
 
 		// Query current brightness
-		std::vector<std::vector<std::string>> result;
-		result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+		auto result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
 		if (result.empty())
 		{
 			CreateErrorResponse(root, request_json, "NO_SUCH_ENDPOINT", "Device not found");
@@ -1446,7 +1469,11 @@ static void Alexa_HandleControl_BrightnessController(WebEmSession& session, cons
 		int maxDimLevel;
 		GetLightStatus(dType, dSubType, switchtype, nValue, sValue, lstatus, level, bHaveDimmer, maxDimLevel, bHaveGroupCmd);
 
-		int new_brightness = level + brightnessDelta;
+		// If device is off, treat current level as 0
+		bool is_off = (lstatus == "Off");
+		int current_level = is_off ? 0 : level;
+
+		int new_brightness = current_level + brightnessDelta;
 		if (new_brightness < 0) new_brightness = 0;
 		if (new_brightness > 100) new_brightness = 100;
 
@@ -1479,8 +1506,7 @@ static void Alexa_HandleControl_ColorController(WebEmSession& session, const Jso
 		double color_brightness = request_json["directive"]["payload"]["color"]["brightness"].asDouble();
 
 		// Query current device brightness level (not the color brightness)
-		std::vector<std::vector<std::string>> result;
-		result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+		auto result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
 		if (result.empty())
 		{
 			CreateErrorResponse(root, request_json, "NO_SUCH_ENDPOINT", "Device not found");
@@ -1571,8 +1597,7 @@ static void Alexa_HandleControl_ColorTemperatureController(WebEmSession& session
 			session.username.c_str(), device_idx, color_temp_kelvin, cw, ww);
 
 		// Query current brightness
-		std::vector<std::vector<std::string>> result;
-		result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+		auto result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
 		if (result.empty())
 		{
 			CreateErrorResponse(root, request_json, "NO_SUCH_ENDPOINT", "Device not found");
@@ -1613,8 +1638,7 @@ static void Alexa_HandleControl_ColorTemperatureController(WebEmSession& session
 	else if (directive_name == "DecreaseColorTemperature" || directive_name == "IncreaseColorTemperature")
 	{
 		// Query current color temperature from device
-		std::vector<std::vector<std::string>> result;
-		result = m_sql.safe_query("SELECT Color FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+		auto result = m_sql.safe_query("SELECT Color FROM DeviceStatus WHERE (ID = %llu)", device_idx);
 		if (result.empty() || result[0][0].empty())
 		{
 			CreateErrorResponse(root, request_json, "NO_SUCH_ENDPOINT", "Device not found or no color data");
@@ -1764,8 +1788,7 @@ static void Alexa_HandleControl_ThermostatController(WebEmSession& session, cons
 		double current_temp;
 		if (is_evohome_zone)
 		{
-			std::vector<std::vector<std::string>> result;
-			result = m_sql.safe_query("SELECT sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+			auto result = m_sql.safe_query("SELECT sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
 			if (result.empty())
 			{
 				CreateErrorResponse(root, request_json, "NO_SUCH_ENDPOINT", "Zone not found");
@@ -1781,12 +1804,35 @@ static void Alexa_HandleControl_ThermostatController(WebEmSession& session, cons
 			}
 			current_temp = atof(values[1].c_str());
 		}
+		else if (what_am_i == "thermostat6")
+		{
+			// For thermostat6, query the device itself
+			auto result = m_sql.safe_query("SELECT sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+			if (result.empty())
+			{
+				CreateErrorResponse(root, request_json, "NO_SUCH_ENDPOINT", "Thermostat not found");
+				return;
+			}
+			// Parse sValue: "temp;setpoint" or "temp;setpoint;humidity" or "temp;setpoint;humidity;barometer"
+			std::vector<std::string> values;
+			StringSplit(result[0][0], ";", values);
+			if (values.size() < 2)
+			{
+				CreateErrorResponse(root, request_json, "INTERNAL_ERROR", "Invalid thermostat data");
+				return;
+			}
+			current_temp = atof(values[1].c_str());
+		}
 		else
 		{
 			std::string setpoint_idx_str = cookie.get("setpointIdx", "").asString();
+			if (setpoint_idx_str.empty())
+			{
+				CreateErrorResponse(root, request_json, "INTERNAL_ERROR", "Missing setpoint device reference");
+				return;
+			}
 			uint64_t setpoint_idx = std::stoull(setpoint_idx_str);
-			std::vector<std::vector<std::string>> result;
-			result = m_sql.safe_query("SELECT sValue FROM DeviceStatus WHERE (ID = %llu)", setpoint_idx);
+			auto result = m_sql.safe_query("SELECT sValue FROM DeviceStatus WHERE (ID = %llu)", setpoint_idx);
 			if (result.empty())
 			{
 				CreateErrorResponse(root, request_json, "NO_SUCH_ENDPOINT", "Setpoint device not found");
@@ -1808,6 +1854,15 @@ static void Alexa_HandleControl_ThermostatController(WebEmSession& session, cons
 			temp_value["value"] = new_temp;
 			temp_value["scale"] = "CELSIUS";
 			root["context"]["properties"].append(CreateProperty("Alexa.ThermostatController", "targetSetpoint", temp_value));
+		}
+		else if (what_am_i == "thermostat6")
+		{
+			// For thermostat6, use SetSetPoint on the main device
+			std::string idx_str = std::to_string(device_idx);
+			m_mainworker.SetSetPoint(idx_str, static_cast<float>(new_temp));
+
+			// Report updated state using common function
+			ReportThermostatState(root, cookie, 0, false, std::to_string(new_temp));
 		}
 		else
 		{
@@ -1869,8 +1924,7 @@ static void Alexa_HandleControl_ThermostatController(WebEmSession& session, cons
 		if (what_am_i == "thermostat6")
 		{
 			// For thermostat6, query the device itself to get setpoint
-			std::vector<std::vector<std::string>> result;
-			result = m_sql.safe_query("SELECT sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+			auto result = m_sql.safe_query("SELECT sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
 			if (!result.empty())
 			{
 				std::vector<std::string> values;
@@ -1973,8 +2027,7 @@ static void Alexa_HandleControl_ReportState(WebEmSession& session, const Json::V
 	std::string endpoint_id = request_json["directive"]["endpoint"]["endpointId"].asString();
 
 	// Query device state
-	std::vector<std::vector<std::string>> result;
-	result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
+	auto result = m_sql.safe_query("SELECT Type, SubType, SwitchType, nValue, sValue FROM DeviceStatus WHERE (ID = %llu)", device_idx);
 	if (result.empty())
 	{
 		CreateErrorResponse(root, request_json, "NO_SUCH_ENDPOINT", "Device not found");
