@@ -8,7 +8,7 @@
 std::string HTMLSanitizer::Sanitize(const std::string& szText)
 {
 	// https://html5sec.org/
-	const auto szForbiddenContent = std::array<std::string, 26>{
+	const auto szForbiddenContent = std::array<std::string, 27>{
 		"a",
 		"span",
 		"script",
